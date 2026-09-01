@@ -1,4 +1,4 @@
-sporty-edge
+sporty-edge V2.1
 
 A personal quantitative football value-betting system.
 

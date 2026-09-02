@@ -2,7 +2,7 @@
 Central configuration for sporty-edge.
 
 Priority platforms, league averages, risk gates, SURESLIP rules, staking,
-and Telegram delivery settings all live here.
+Telegram delivery, and the odds-feed settings all live here.
 """
 
 from __future__ import annotations
@@ -10,9 +10,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # --------------------------------------------------------------------------- #
-# Platforms — priority four first, then the rest
+# Platforms
 # --------------------------------------------------------------------------- #
 
+# The apps YOU hold accounts with. Every pick sheet loads on one of these.
+PLACEABLE_BOOKS: list[str] = [
+    "SportyBet",
+    "Betika",
+    "BetPawa",
+    "Betfalme",
+]
+
+# First in line when several placeable books are available.
 PRIORITY_BOOKS: list[str] = [
     "SportyBet",
     "Betika",
@@ -20,6 +29,8 @@ PRIORITY_BOOKS: list[str] = [
     "Betfalme",
 ]
 
+# Data sources for price discovery (feed books). No accounts needed here —
+# they only supply reference odds used to detect value.
 SUPPORTED_BOOKS: list[str] = [
     "SportyBet",
     "Betika",
@@ -34,31 +45,24 @@ SUPPORTED_BOOKS: list[str] = [
     "Betway",
 ]
 
+# Place a leg when your app's odds are at least reference_odds * (1 - tolerance).
+PRICE_TOLERANCE: float = 0.03  # 3%
+
+
 # --------------------------------------------------------------------------- #
-# Target leagues and scoring averages
+# Target leagues and scoring averages (soccer engine)
 # --------------------------------------------------------------------------- #
 
 TARGET_LEAGUES: dict[str, list[str]] = {
     "Europe": [
-        "Premier League",
-        "La Liga",
-        "Serie A",
-        "Bundesliga",
-        "Ligue 1",
-        "UEFA Champions League",
-        "Eredivisie",
-        "Primeira Liga",
+        "Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1",
+        "UEFA Champions League", "Eredivisie", "Primeira Liga",
     ],
     "Africa": [
-        "Egyptian Premier League",
-        "Botola Pro (Morocco)",
-        "Tunisian Ligue Professionnelle 1",
-        "DStv Premiership (South Africa)",
-        "Nigeria Professional Football League",
-        "Kenyan Premier League",
-        "Tanzanian Premier League",
-        "Ghana Premier League",
-        "CAF Champions League",
+        "Egyptian Premier League", "Botola Pro (Morocco)",
+        "Tunisian Ligue Professionnelle 1", "DStv Premiership (South Africa)",
+        "Nigeria Professional Football League", "Kenyan Premier League",
+        "Tanzanian Premier League", "Ghana Premier League", "CAF Champions League",
     ],
 }
 
@@ -93,7 +97,7 @@ class RiskSettings:
     max_singles: int = 3
     single_stake_units: float = 1.0
 
-    max_acca_legs: int = 4            # hard cap by design
+    max_acca_legs: int = 4
     max_accas: int = 2
     min_acca_leg_prob: float = 0.55
     max_acca_leg_odds: float = 2.50
@@ -120,15 +124,9 @@ class RiskSettings:
             raise ValueError("max_acca_combined_odds must be greater than 1.0.")
 
 
-# --------------------------------------------------------------------------- #
-# SURESLIP — the flagship tier
-# --------------------------------------------------------------------------- #
-
 @dataclass(frozen=True)
 class SureSlipSettings:
-    """SURESLIP rules: every pick >= min_leg_prob, one pick per match,
-    combined win probability never below min_combined_prob.  The true
-    combined probability is printed on the slip — always."""
+    """SURESLIP tier — strictest filters in the system."""
 
     min_legs: int = 4
     max_legs: int = 6
@@ -154,10 +152,6 @@ class SureSlipSettings:
         if self.max_sure_slips < 0:
             raise ValueError("max_sure_slips must be non-negative.")
 
-
-# --------------------------------------------------------------------------- #
-# Staking / bankroll
-# --------------------------------------------------------------------------- #
 
 @dataclass(frozen=True)
 class StakingSettings:
@@ -186,28 +180,55 @@ class StakingSettings:
             raise ValueError("max_units_per_bet must be positive.")
 
 
-# --------------------------------------------------------------------------- #
-# Telegram delivery
-# --------------------------------------------------------------------------- #
-
 @dataclass(frozen=True)
 class TelegramSettings:
-    """Telegram bot credentials.
-
-    Leave blank to disable.  Environment variables TELEGRAM_BOT_TOKEN and
-    TELEGRAM_CHAT_ID take priority over these values when set.
-    """
+    """Telegram bot credentials (env vars TELEGRAM_* take priority)."""
 
     bot_token: str = ""
     chat_id: str = ""
     enabled: bool = False
 
 
-# Singletons used across the codebase.
+@dataclass(frozen=True)
+class FeedSettings:
+    """The Odds API feed configuration.
+
+    credits: 1 per region x 1 per market, per sport, per fetch.
+    Default (1 region, h2h) = 1 credit/sport/fetch ->
+    4 sports x 4 sessions x 30 days = 480 <= 500 free credits.
+    """
+
+    odds_api_key: str = ""
+    regions: str = "eu"
+    markets: str = "h2h"
+    feed_sports: tuple[str, ...] = (
+        "soccer_epl",
+        "soccer_spain_la_liga",
+        "basketball_nba",
+        "baseball_mlb",
+    )
+    min_books_for_consensus: int = 2
+    min_edge_feed: float = 0.02
+    min_ev_feed: float = 0.02
+
+
 RISK_SETTINGS = RiskSettings()
 SURESLIP_SETTINGS = SureSlipSettings()
 STAKING_SETTINGS = StakingSettings()
 TELEGRAM_SETTINGS = TelegramSettings()
+FEED_SETTINGS = FeedSettings()
 
 DEFAULT_UNIT_SIZE: float = STAKING_SETTINGS.unit_size
 MAX_ACCA_LEGS: int = RISK_SETTINGS.max_acca_legs
+
+
+# === sporty-edge credentials (auto-managed by setup_credentials.py) ===
+TELEGRAM_SETTINGS = TelegramSettings(
+    bot_token="8626261087:AAEewlFtCinkKPjFhkTq_PR7SfYXnk5uFOA",
+    chat_id="8202470303",
+    enabled=True,
+)
+FEED_SETTINGS = FeedSettings(
+    odds_api_key="8dbc6036b4c640add3b36ff8eab19e50",
+)
+# === end credentials ===

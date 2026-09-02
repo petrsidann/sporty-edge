@@ -1,0 +1,39 @@
+name: sporty-edge sessions
+
+on:
+  schedule:
+    - cron: "0 6,11,16 * * *"     # 09:00 / 14:00 / 19:00 EAT
+    - cron: "30 20 * * *"         # 23:30 EAT (midnight session)
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Detect current session
+        id: session
+        run: echo "name=$(python -c 'from utils.session import detect; print(detect().name.lower())')" >> "$GITHUB_OUTPUT"
+
+      - name: Run session pipeline
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python run_daily.py --session ${{ steps.session.outputs.name }}
+
+      - name: Commit ledger updates
+        run: |
+          git config user.name "edge-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/bets.jsonl || true
+          git diff --cached --quiet || git commit -m "Ledger update: ${{ steps.session.outputs.name }} [skip ci]"
+          git push

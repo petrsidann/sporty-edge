@@ -1,13 +1,15 @@
 """
-Bet logging and performance tracking.
+Bet ledger (JSON Lines) + performance metrics.
 
-Append-only JSONL ledger of every recommended slip: picks, odds, platform,
-booking code, settlement status, and realised performance in units.
+Each slip is one line: picks, odds, platform, booking code, session, and
+settlement status.  Writes are atomic (temp file + rename) so the ledger
+can never be left half-written by a crash.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,15 +25,8 @@ DEFAULT_LEDGER_PATH = Path("data") / "bets.jsonl"
 VALID_OUTCOMES = {"WIN", "LOSS", "VOID"}
 
 _SUMMARY_COLUMNS = [
-    "bet_id",
-    "logged_at",
-    "slip_type",
-    "n_legs",
-    "primary_book",
-    "combined_odds",
-    "stake_units",
-    "ev_per_unit",
-    "status",
+    "bet_id", "logged_at", "slip_type", "n_legs", "primary_book",
+    "combined_odds", "stake_units", "ev_per_unit", "session", "status",
     "profit_units",
 ]
 
@@ -45,7 +40,7 @@ class BetLogger:
 
     # ------------------------------ Writing ----------------------------- #
 
-    def log_slip(self, slip: Slip) -> str:
+    def log_slip(self, slip: Slip, session: str | None = None) -> str:
         """Persist a slip as PENDING and return its bet id."""
         bet_id = f"BET-{slip.slip_id}"
         record: dict[str, Any] = {
@@ -58,6 +53,7 @@ class BetLogger:
             "combined_prob": round(slip.combined_prob, 6),
             "ev_per_unit": round(slip.ev_per_unit, 6),
             "stake_units": slip.stake_units,
+            "session": session,
             "platform": None,
             "booking_code": None,
             "status": "PENDING",
@@ -68,8 +64,6 @@ class BetLogger:
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
         return bet_id
-
-    # ---------------------------- Booking code --------------------------- #
 
     def attach_code(self, bet_id: str, platform: str, code: str) -> dict[str, Any]:
         """Record the platform's booking code / bet reference for a logged bet."""
@@ -142,9 +136,12 @@ class BetLogger:
         return records
 
     def _write_all(self, records: list[dict[str, Any]]) -> None:
-        with self.path.open("w", encoding="utf-8") as fh:
+        """Atomic rewrite: temp file then rename, so a crash can't corrupt."""
+        tmp = self.path.with_suffix(".jsonl.tmp")
+        with tmp.open("w", encoding="utf-8") as fh:
             for rec in records:
                 fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        os.replace(tmp, self.path)
 
     def pending(self) -> list[dict[str, Any]]:
         return [r for r in self._read_all() if r["status"] == "PENDING"]
@@ -180,6 +177,7 @@ class BetLogger:
                     "slip_type": r["slip_type"],
                     "n_legs": r["n_legs"],
                     "primary_book": r["legs"][0]["book"] if r["legs"] else "",
+                    "session": r.get("session"),
                     "platform": r.get("platform"),
                     "booking_code": r.get("booking_code"),
                     "combined_odds": r["combined_odds"],
@@ -196,6 +194,7 @@ class BetLogger:
         return pd.DataFrame(rows)
 
     def breakdown(self, by: str = "slip_type") -> pd.DataFrame:
+        """Aggregate settled performance grouped by slip_type / session / book."""
         df = self.summary_frame()
         settled = df[df["status"] != "PENDING"]
         if settled.empty:

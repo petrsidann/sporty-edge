@@ -12,12 +12,16 @@ Setup (one time, 2 minutes):
        (environment variables take priority).
     4. Open your bot in Telegram and press Start once, so it can DM you.
 
+Standalone test (run from the repo root):
+    python3 -m notify.telegram
+
 Failure policy: Telegram problems NEVER crash the pipeline.  Everything is
-still printed to the console; the notifier just reports and moves on.
+still printed to the console; the notifier reports the reason and moves on.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import urllib.error
 import urllib.parse
@@ -101,11 +105,33 @@ class TelegramNotifier:
         ).encode("utf-8")
         url = _API_URL.format(token=self.bot_token)
         try:
-            req = urllib.request.Request(
-                url, data=payload, method="POST"
-            )
+            req = urllib.request.Request(url, data=payload, method="POST")
             with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
                 return 200 <= resp.status < 300
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
-            print("  !! Telegram send failed — continuing (console still has everything).")
+        except urllib.error.HTTPError as exc:
+            # Telegram always returns a JSON body explaining the problem.
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")
+                description = json.loads(detail).get("description", detail)
+            except Exception:
+                description = detail[:200] if "detail" in dir() else ""
+            print(f"  !! Telegram HTTP {exc.code}: {description}")
+            print("     Fix hints: 401 = wrong token | 403 = press START on the bot")
+            print("     in Telegram first | 400 chat not found = wrong chat id.")
             return False
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            print(f"  !! Telegram network error: {exc!r} — continuing.")
+            return False
+
+
+if __name__ == "__main__":
+    notifier = TelegramNotifier()
+    if not notifier.is_configured:
+        print("Telegram is not configured.")
+        print("Fill TelegramSettings(bot_token=..., chat_id=..., enabled=True)")
+        print("at the bottom of config/settings.py, save, then run this again.")
+    else:
+        print("Config found — sending test message...")
+        print("SENT OK — check your Telegram." if notifier.send(
+            "✅ sporty-edge Telegram test — you are connected."
+        ) else "SEND FAILED — see the error reason printed above.")

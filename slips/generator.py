@@ -113,7 +113,7 @@ class Slip:
             f" SLIP {self.slip_id}  |  {self.slip_type}  |  "
             f"{self.n_legs} pick(s)  |  {self.created_at}"
         )
-        lines.append(f" (Internal ref only — the platform mints the real code.)")
+        lines.append(" (Internal ref only — the platform mints the real code.)")
         lines.append(sub)
         for idx, leg in enumerate(self.legs, start=1):
             lines.append(f" Pick {idx}: {leg.match_label}  [{leg.league}]")
@@ -276,7 +276,7 @@ class SlipGenerator:
             legs = [seed]
             leg_matches = {seed.selection.match_id}
             combined_odds = seed.decimal_odds
-            combined_prob = seed.model_prob
+            combined_prob = seed.selection.model_probability
 
             for candidate in pool:
                 if len(legs) >= cfg.max_legs:
@@ -285,7 +285,7 @@ class SlipGenerator:
                     continue
 
                 new_odds = combined_odds * candidate.decimal_odds
-                new_prob = combined_prob * candidate.model_prob
+                new_prob = combined_prob * candidate.selection.model_probability
                 if new_odds > cfg.max_combined_odds or new_prob < cfg.min_combined_prob:
                     continue
 
@@ -371,7 +371,7 @@ class SlipGenerator:
             legs = [seed]
             leg_matches = {seed.selection.match_id}
             combined_odds = seed.decimal_odds
-            combined_prob = seed.model_prob
+            combined_prob = seed.selection.model_probability
 
             for candidate in pool:
                 if len(legs) >= cfg.max_acca_legs:
@@ -380,7 +380,7 @@ class SlipGenerator:
                     continue
 
                 new_odds = combined_odds * candidate.decimal_odds
-                new_prob = combined_prob * candidate.model_prob
+                new_prob = combined_prob * candidate.selection.model_probability
                 if (
                     new_odds > cfg.max_acca_combined_odds
                     or new_prob < cfg.min_acca_combined_prob

@@ -2,7 +2,7 @@
 Central configuration for sporty-edge.
 
 Priority platforms, league averages, risk gates, SURESLIP rules, staking,
-Telegram delivery, and the odds-feed settings all live here.
+Telegram delivery, odds-feed settings, and ACTION mode all live here.
 """
 
 from __future__ import annotations
@@ -29,8 +29,7 @@ PRIORITY_BOOKS: list[str] = [
     "Betfalme",
 ]
 
-# Data sources for price discovery (feed books). No accounts needed here —
-# they only supply reference odds used to detect value.
+# Data sources for price discovery (feed books). No accounts needed here.
 SUPPORTED_BOOKS: list[str] = [
     "SportyBet",
     "Betika",
@@ -155,7 +154,11 @@ class SureSlipSettings:
 
 @dataclass(frozen=True)
 class StakingSettings:
-    """Bankroll and staking configuration."""
+    """Bankroll and staking configuration.
+
+    Set initial_bankroll and unit_size to your REAL numbers — stakes print
+    in units of unit_size against this bankroll.
+    """
 
     initial_bankroll: float = 10_000.0
     unit_size: float = 100.0
@@ -193,9 +196,14 @@ class TelegramSettings:
 class FeedSettings:
     """The Odds API feed configuration.
 
-    credits: 1 per region x 1 per market, per sport, per fetch.
-    Default (1 region, h2h) = 1 credit/sport/fetch ->
-    4 sports x 4 sessions x 30 days = 480 <= 500 free credits.
+    Credit cost per fetch = regions x markets, per sport.
+      h2h only          -> 1 credit/sport/fetch -> 4x4 sessions = 480/month
+      "h2h,totals"      -> 2 credits/sport/fetch -> 4x4 = 960 (needs paid tier)
+      More leagues: swap feed_sports keys.  Softer markets (EFL Championship,
+      Eredivisie, Primeira Liga) show more cross-book dispersion than EPL/La
+      Liga.  Tennis keys are tournament-scoped and rotate: run
+      `python3 -m feeds.oddsapi --list-sports` while a tournament is live and
+      swap keys in.
     """
 
     odds_api_key: str = ""
@@ -212,23 +220,43 @@ class FeedSettings:
     min_ev_feed: float = 0.02
 
 
+@dataclass(frozen=True)
+class ActionSettings:
+    """ACTION mode — daily picks when no edge is detected.
+
+    When the +EV scan finds nothing, the system ranks every candidate by
+    proximity to value (highest edge, even if negative) and emits the best
+    ``max_picks`` as ACTION slips at a fixed stake.  Clearly labeled in the
+    ledger and on Telegram as no-edge picks, so their ROI is measured
+    honestly over time.
+    """
+
+    max_picks: int = 2
+    stake_units: float = 0.5
+    min_odds: float = 1.40
+    max_odds: float = 3.50
+    min_prob: float = 0.25
+    min_books: int = 3
+
+    def __post_init__(self) -> None:
+        if self.max_picks < 0:
+            raise ValueError("max_picks must be non-negative.")
+        if self.stake_units <= 0.0:
+            raise ValueError("stake_units must be positive.")
+        if not 1.0 < self.min_odds < self.max_odds:
+            raise ValueError("Require 1.0 < min_odds < max_odds.")
+        if not 0.0 < self.min_prob < 1.0:
+            raise ValueError("min_prob must lie in (0, 1).")
+        if self.min_books < 1:
+            raise ValueError("min_books must be at least 1.")
+
+
 RISK_SETTINGS = RiskSettings()
 SURESLIP_SETTINGS = SureSlipSettings()
 STAKING_SETTINGS = StakingSettings()
 TELEGRAM_SETTINGS = TelegramSettings()
 FEED_SETTINGS = FeedSettings()
+ACTION_SETTINGS = ActionSettings()
 
 DEFAULT_UNIT_SIZE: float = STAKING_SETTINGS.unit_size
 MAX_ACCA_LEGS: int = RISK_SETTINGS.max_acca_legs
-
-
-# === sporty-edge credentials (auto-managed by setup_credentials.py) ===
-TELEGRAM_SETTINGS = TelegramSettings(
-    bot_token="8626261087:AAEewlFtCinkKPjFhkTq_PR7SfYXnk5uFOA",
-    chat_id="8202470303",
-    enabled=True,
-)
-FEED_SETTINGS = FeedSettings(
-    odds_api_key="8dbc6036b4c640add3b36ff8eab19e50",
-)
-# === end credentials ===

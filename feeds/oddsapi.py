@@ -8,16 +8,19 @@ Setup (one time):
        or set the environment variable ODDS_API_KEY (env var wins).
 
 Credit budget (free tier = 500/month):
-    Cost per fetch = 1 credit per region x 1 credit per market.
-    Defaults: 1 region (eu), 1 market (h2h) -> 1 credit per sport per session.
-    4 sports x 4 sessions/day x 30 days = 480 credits  -> fits the free tier.
-    Set markets="h2h,totals" (doubles cost) only if you buy credits.
+    1 credit per region x 1 per market, per sport, per fetch.
+    Defaults (1 region, h2h) -> 4 sports x 4 sessions x 30 days = 480 credits.
 
-Model probabilities in feed mode = cross-book no-vig CONSENSUS:
-    For each book: p_i = (1/odds_i) / overround   (proportional de-margin)
-    Consensus = median of p_i across books.
-    The comparator then flags any single book paying above consensus.
-    These are real cross-platform inefficiencies; they are usually small.
+De-margining — the power method (patched):
+    Books load extra margin onto longshots (favourite-longshot bias), so
+    splitting the overround evenly (proportional method) OVERSTATES longshot
+    true probability and fabricates fake EV on big prices.  The power method
+    solves for k such that  sum((1/odds_i)^k) = 1  and uses p_i = q_i^k
+    (renormalised).  k > 1 shrinks longshots more than favourites — the
+    correct direction.  Expect longshot edges to shrink; that is honesty,
+    not a regression.
+
+Model probabilities in feed mode = cross-book power-devig MEDIAN.
 
 CLI helpers (run from repo root):
     python3 -m feeds.oddsapi --list-sports   # discover valid sport keys
@@ -68,7 +71,7 @@ class OddsApiFeed:
         return bool(self.api_key)
 
     def _get(self, path: str, params: dict[str, str]) -> tuple[object, dict[str, str]]:
-        """GET the API; returns (parsed_json, response_headers). Raises on HTTP errors."""
+        """GET the API; returns (parsed_json, response_headers)."""
         query = urllib.parse.urlencode(params)
         url = f"{_API_BASE}{path}?{query}"
         req = urllib.request.Request(url, headers={"User-Agent": "sporty-edge/1.0"})
@@ -117,19 +120,49 @@ class OddsApiFeed:
             return None
 
     # ------------------------------------------------------------------ #
-    # Parsing
+    # De-margining (power method)
     # ------------------------------------------------------------------ #
 
     @staticmethod
     def _devig(outcomes: dict[str, float]) -> dict[str, float] | None:
-        """Proportional de-margin: p_i = (1/o_i) / sum(1/o). Needs >= 2 outcomes."""
+        """Power-method de-margin: corrects favourite-longshot bias.
+
+        Proportional method: p_i = q_i / sum(q).  Power method: find k with
+        sum(q_i^k) = 1 (bisection) and use p_i = q_i^k (renormalised).
+        Requires >= 2 valid outcomes.
+        """
         if len(outcomes) < 2:
             return None
-        implied = {k: 1.0 / o for k, o in outcomes.items() if o > 1.0}
-        total = sum(implied.values())
+        q = {name: 1.0 / odds for name, odds in outcomes.items() if odds > 1.0}
+        if len(q) < 2:
+            return None
+
+        raw_total = sum(q.values())
+        if raw_total <= 1.0:
+            # No overround present: normalise whatever we have and return.
+            if raw_total <= 0:
+                return None
+            return {name: v / raw_total for name, v in q.items()}
+
+        # Bisection for k in (1, 5): f(k) = sum(q_i^k) is decreasing in k.
+        lo, hi = 1.0, 5.0
+        for _ in range(60):
+            mid = (lo + hi) / 2.0
+            if sum(v**mid for v in q.values()) > 1.0:
+                lo = mid
+            else:
+                hi = mid
+        k = (lo + hi) / 2.0
+
+        probs = {name: v**k for name, v in q.items()}
+        total = sum(probs.values())
         if total <= 0:
             return None
-        return {k: v / total for k, v in implied.items()}
+        return {name: v / total for name, v in probs.items()}
+
+    # ------------------------------------------------------------------ #
+    # Parsing
+    # ------------------------------------------------------------------ #
 
     def _parse_event(self, event: dict) -> list[tuple[Selection, list[OddsQuote]]]:
         home = event.get("home_team") or "?"
@@ -170,7 +203,7 @@ class OddsApiFeed:
 
         candidates: list[tuple[Selection, list[OddsQuote]]] = []
 
-        # ---- h2h consensus ---- #
+        # ---- h2h consensus (median of power-devig probabilities) ---- #
         devigged: dict[str, list[float]] = defaultdict(list)
         raw_quotes: dict[str, list[OddsQuote]] = defaultdict(list)
         for book_title, odds_map in per_book_h2h.items():

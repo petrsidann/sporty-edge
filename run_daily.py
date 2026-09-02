@@ -3,12 +3,15 @@ run_daily.py — the session runner.
 
 One betting session:
     1. Detect (or take --session) the current session.
-    2. Pull today's events + prices from The Odds API feed (automatic).
-       If the feed is unconfigured or down -> fall back to your CSV files.
-    3. Consensus-EV scan (feed) or model-EV scan (CSV) -> value bets.
-    4. Build slips with stakes from the aggression tier.
-    5. Platform pick sheets -> console + Telegram, tagged with the session.
-    6. Ledger entries tagged with the session for per-session breakdowns.
+    2. Pull events + prices from The Odds API feed (automatic); fall back
+       to your CSV files if the feed is unconfigured or down.
+    3. EV scan.  If positive-EV bets exist -> normal tiers (SURESLIP /
+       singles / accas / SPEC).
+    4. If NO edge is found -> ACTION mode: the closest-to-value candidates
+       go out as clearly-labeled ACTION picks at a fixed stake.  The system
+       bets every session; it never claims an edge it did not measure.
+    5. Platform pick sheets -> console + Telegram, session-tagged.
+    6. Ledger entries tagged with the session.
 
 Usage:
     python run_daily.py                 # auto-detect session
@@ -30,8 +33,10 @@ from data.loader import (
 from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from odds.comparator import BetOpportunity, OddsComparator
+from slips.action import build_action_picks
 from slips.generator import Slip, SlipGenerator, SlipGeneratorConfig, SureSlipConfig
 from slips.platform_slip import PlatformSheet, choose_platform
+from slips.spec import build_spec_singles
 from utils.aggression import current_tier
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
@@ -47,7 +52,7 @@ def _trunc(text: str, width: int) -> str:
     return text if len(text) <= width else text[: width - 1] + "…"
 
 
-def _print_value_table(opportunities: list[BetOpportunity], limit: int = 12) -> None:
+def _print_table(opportunities: list[BetOpportunity], limit: int = 12) -> None:
     header = (
         f"  {'#':>2}  {'Match':<30} {'Pick':<16} {'Best Book':<12} "
         f"{'Odds':>5} {'Model':>6} {'Edge':>6} {'EV/u':>6}"
@@ -63,11 +68,11 @@ def _print_value_table(opportunities: list[BetOpportunity], limit: int = 12) -> 
             f"{opp.edge * 100:>+5.1f}% {opp.ev_per_unit * 100:>+5.1f}%"
         )
     if len(opportunities) > limit:
-        print(f"  … and {len(opportunities) - limit} more (top {limit} by EV).")
+        print(f"  … and {len(opportunities) - limit} more.")
 
 
-def _from_feed() -> tuple[list[tuple[BetOpportunity, None]] | None, list]:
-    """Try the automated feed; returns (candidates, source_label) or ([], 'FEED')."""
+def _from_feed() -> list | None:
+    """Try the automated feed; returns candidates or None when unavailable."""
     feed = OddsApiFeed()
     if not feed.is_configured:
         print("  Feed: no API key configured (ODDS_API_KEY / FeedSettings).")
@@ -132,55 +137,66 @@ def main() -> None:
 
     print(f"  Data source    : {source}")
 
-    # ---------- model read-out (CSV mode only; feed mode uses consensus) -- #
-    if source == "CSV" and models:
-        _banner("Model read-out (per fixture, top-4 markets)")
-        for row in load_fixtures():
-            mid = (row.get("match_id") or "").strip()
-            model = models.get(mid)
-            if model is None:
-                continue
-            probs = model.market_probabilities()
-            top4 = sorted(probs.items(), key=lambda kv: kv[1], reverse=True)[:4]
-            summary = ", ".join(f"{k} {v * 100:.1f}%" for k, v in top4)
-            extra = getattr(model, "summary", None)
-            detail = f"  |  {extra()}" if callable(extra) else ""
-            print(f"  {mid}  {_trunc(fixture_label(row), 28):<28}  {summary}{detail}")
-
     # ---------- EV scan ---------- #
     _banner("Positive-EV scan")
     if source == "FEED":
         min_edge, min_ev = FEED_SETTINGS.min_edge_feed, FEED_SETTINGS.min_ev_feed
-        print("  (feed mode: model probabilities = cross-book no-vig consensus)")
+        print("  (feed mode: probabilities = cross-book no-vig consensus, "
+              "power-method de-margin)")
     else:
         min_edge, min_ev = RISK_SETTINGS.min_edge, RISK_SETTINGS.min_ev_per_unit
 
     comparator = OddsComparator(min_edge=min_edge, min_ev_per_unit=min_ev)
-    value_bets = comparator.find_value_bets(candidates)
+    all_opportunities: list[BetOpportunity] = [
+        comparator.evaluate(sel, quotes) for sel, quotes in candidates
+    ]
+    value_bets = comparator.rank(
+        [o for o in all_opportunities if comparator.is_value(o)]
+    )
     print(
         f"  Positive-EV opportunities: {len(value_bets)} "
         f"(min edge {min_edge:.1%}, min EV {min_ev:.1%})"
     )
-    if not value_bets:
-        print("  No value this session — the professional answer is no bets.")
-        if tg.is_configured:
-            tg.send(f"{session.emoji} {session.name}: no positive-EV found — no bets.")
-        return
-    _print_value_table(value_bets)
 
-    # ---------- slips ---------- #
-    _banner("Slip construction (stake sizes from your aggression tier)")
-    gen_cfg = replace(
-        SlipGeneratorConfig.from_settings(),
-        single_stake_units=tier.single_stake_units,
-        acca_stake_units=tier.acca_stake_units,
-    )
-    sure_cfg = replace(SureSlipConfig.from_settings(), stake_units=tier.sure_stake_units)
-    slips = SlipGenerator(gen_cfg, sure_cfg).build_all(value_bets)
+    mode = "VALUE" if value_bets else "ACTION"
+    slips: list[Slip]
+
+    if value_bets:
+        _print_table(value_bets)
+
+        # ---------- value tiers: SURESLIP -> singles -> accas -> SPEC ---- #
+        _banner("Slip construction (stake sizes from your aggression tier)")
+        gen_cfg = replace(
+            SlipGeneratorConfig.from_settings(),
+            single_stake_units=tier.single_stake_units,
+            acca_stake_units=tier.acca_stake_units,
+        )
+        sure_cfg = replace(
+            SureSlipConfig.from_settings(), stake_units=tier.sure_stake_units
+        )
+        base_slips = SlipGenerator(gen_cfg, sure_cfg).build_all(value_bets)
+        used_matches = {leg.match_id for s in base_slips for leg in s.legs}
+        spec_slips = build_spec_singles(value_bets, exclude_match_ids=used_matches)
+        slips = base_slips + spec_slips
+    else:
+        # ---------- ACTION mode: no edge, still deliver picks ----------- #
+        print("  No measured edge — switching to ACTION mode (honest picks).")
+        _print_table(
+            sorted(all_opportunities, key=lambda o: o.edge, reverse=True),
+            limit=10,
+        )
+        _banner("ACTION mode — closest-to-value picks, fixed stake")
+        print(
+            "  These picks carry NO measured edge.  They are the candidates "
+            "closest to breakeven right now, labeled ACTION in the ledger so "
+            "their ROI is tracked separately."
+        )
+        slips = build_action_picks(all_opportunities)
+
     if not slips:
-        print("  No slips cleared the quality bar — stand down this session.")
+        print("  Nothing cleared even the ACTION filters — stand down.")
         if tg.is_configured:
-            tg.send(f"{session.emoji} {session.name}: no slips cleared the bar.")
+            tg.send(f"{session.emoji} {session.name}: nothing to send.")
         return
 
     bankroll = Bankroll()
@@ -207,25 +223,34 @@ def main() -> None:
             text = sheet.render(bet_id=bet_id)
             print(text)
             if tg.is_configured:
-                tg.send(f"{session.emoji} {session.name}\n\n{text}")
+                if slip.slip_type == "ACTION":
+                    header = (
+                        "🎲 ACTION pick — no edge detected; ranked closest to "
+                        "value. Fixed stake."
+                    )
+                elif slip.slip_type == "SPEC":
+                    header = "⚠ SPEC pick — quarter-stake outlier play."
+                else:
+                    header = f"{session.emoji} {session.name}"
+                tg.send(f"{header}\n\n{text}")
         else:
             print(slip.render())
         print()
 
     # ---------- summary ---------- #
-    _banner("Session summary")
+    _banner(f"Session summary ({mode} mode)")
     total_stake = sum(s.stake_units for s in placed)
     expected_profit = sum(s.stake_units * s.ev_per_unit for s in placed)
     for slip in placed:
         print(f"  {slip.summary_line()}")
     print(
-        f"\n  Session {session.name} | Slips: {len(placed)} | "
+        f"\n  Session {session.name} [{mode}] | Slips: {len(placed)} | "
         f"Stake: {total_stake:.2f}u | Expected P/L: {expected_profit:+.2f}u"
     )
     print(f"  Metrics: {logger.metrics()}")
 
     if tg.is_configured:
-        lines = [f"📊 {session.emoji} {session.name} session summary ({source})"]
+        lines = [f"📊 {session.emoji} {session.name} summary ({mode}, {source})"]
         lines += [f"• {s.summary_line()}" for s in placed]
         lines.append(f"Stake {total_stake:.2f}u | Expected P/L {expected_profit:+.2f}u")
         lines.append("Load each sheet on its named platform, register the code, "

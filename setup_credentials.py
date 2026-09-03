@@ -22,6 +22,12 @@ from pathlib import Path
 
 CRED_PATH = Path("data") / "credentials.json"
 
+_VERIFY_SNIPPET = (
+    "from config.settings import TELEGRAM_SETTINGS as T, FEED_SETTINGS as F; "
+    "print('settings OK | telegram:', bool(T.bot_token and T.chat_id), "
+    "'| api key:', bool(F.odds_api_key), '| failover keys:', len(F.api_keys))"
+)
+
 
 def _load_existing() -> dict:
     """Existing credentials (if any) so Enter can keep them."""
@@ -108,14 +114,7 @@ def main() -> None:
 
     print("  Verifying settings load correctly...")
     result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from config.settings import TELEGRAM_SETTINGS as T, FEED_SETTINGS as F; "
-            "print('  ✓ settings OK | telegram:', bool(T.bot_token and T.chat_id), "
-            "| api key:', bool(F.odds_api_key), '| failover keys:', len(F.api_keys))",
-        ],
-        check=False,
+        [sys.executable, "-c", _VERIFY_SNIPPET], check=False
     )
     if result.returncode != 0:
         print("  ✗ settings failed to import — paste the error above to support.")

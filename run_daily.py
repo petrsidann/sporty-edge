@@ -5,13 +5,14 @@ One betting session:
     1. Detect (or take --session) the current session.
     2. Pull events + prices from The Odds API feed (cached, 6h TTL);
        fall back to your CSV files if the feed is unavailable.
-    3. EV scan with a STALE-LINE GUARD: any candidate whose best price is
-       more than SUSPECT_RATIO above consensus fair odds is excluded —
-       divergences that large are broken feed lines, not real edges
-       (the sharp books ARE the market).
-    4. Dedupe guard: no slip is built containing a pick already PENDING
-       in the ledger (protects manual re-runs and scheduled runs that
-       land inside the cache TTL).
+    3. Guards, in order:
+         a. STALE-LINE GUARD — best price >20% above consensus fair odds
+            is a broken feed line, not an edge.
+         b. DEGENERATE-MARKET GUARD — if 2+ mutually exclusive outcomes of
+            the same (match, market) all show positive edge, the consensus
+            for that market is polluted (a real market cannot be +EV on
+            every outcome); the whole market is excluded.
+    4. Dedupe guard: no slip containing a pick already PENDING in the ledger.
     5. Slip tiers: SURESLIP -> singles -> accas -> SPEC; if no edge is
        found, ACTION mode emits closest-to-value picks.
     6. Platform pick sheets -> console + Telegram, session-tagged.
@@ -24,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import sys
+from collections import defaultdict
 from dataclasses import replace
 
 from config.settings import FEED_SETTINGS, RISK_SETTINGS
@@ -95,6 +97,40 @@ def _is_suspect(opp: BetOpportunity) -> bool:
     """True when the best price diverges too far above consensus fair odds."""
     fair = 1.0 / opp.selection.model_probability
     return opp.decimal_odds / fair > SUSPECT_RATIO
+
+
+def _drop_degenerate_markets(
+    opportunities: list[BetOpportunity],
+) -> list[BetOpportunity]:
+    """Exclude any (match, market) where 2+ exclusive outcomes show +edge.
+
+    A real market cannot be +EV on every outcome of an exhaustive set —
+    that would be free arbitrage.  In feed data, the pattern (e.g. both
+    sides of an NHL game flagged at once) means the cross-book consensus
+    for that market is polluted.  The whole market is excluded, not just
+    the extra outcomes, because the consensus itself is untrustworthy.
+    """
+    groups: dict[tuple[str, str], list[BetOpportunity]] = defaultdict(list)
+    for opp in opportunities:
+        if opp.edge > 0.0:
+            groups[(opp.selection.match_id, opp.selection.market)].append(opp)
+
+    excluded: set[tuple[str, str]] = set()
+    for (match_id, market), group in groups.items():
+        if len(group) > 1:
+            excluded.add((match_id, market))
+            print(
+                f"  .. degenerate market: {group[0].selection.match_label} "
+                f"[{market}] — +edge on {len(group)} exclusive outcomes at "
+                f"once; consensus polluted, market excluded."
+            )
+    if not excluded:
+        return opportunities
+    return [
+        o
+        for o in opportunities
+        if (o.selection.match_id, o.selection.market) not in excluded
+    ]
 
 
 def _pending_leg_keys(logger: BetLogger) -> set[tuple[str, str, str]]:
@@ -195,14 +231,16 @@ def main() -> None:
         comparator.evaluate(sel, quotes) for sel, quotes in candidates
     ]
 
-    clean = [o for o in all_opportunities if not _is_suspect(o)]
     suspects = [o for o in all_opportunities if _is_suspect(o)]
+    clean = [o for o in all_opportunities if not _is_suspect(o)]
     if suspects:
         print(
             f"  Stale-line guard: {len(suspects)} candidate(s) excluded "
             f"(best price >{SUSPECT_RATIO:.0%} above consensus fair odds — "
             f"broken feed lines, not edges)."
         )
+
+    clean = _drop_degenerate_markets(clean)
 
     value_bets = comparator.rank(
         [o for o in clean if comparator.is_value(o)]

@@ -1,28 +1,26 @@
 """
-The Odds API feed — the automated data source.
+The Odds API feed — automated data source with caching and key failover.
 
 Setup (one time):
     1. Register free at https://the-odds-api.com (500 free credits/month).
-    2. Copy your API key.
-    3. Either paste it into config/settings.py FeedSettings(odds_api_key=...)
-       or set the environment variable ODDS_API_KEY (env var wins).
+    2. Run python3 setup_credentials.py to store the key, or set ODDS_API_KEY.
 
-Credit budget (free tier = 500/month):
-    1 credit per region x 1 per market, per sport, per fetch.
-    Defaults (1 region, h2h) -> 4 sports x 4 sessions x 30 days = 480 credits.
+Credit math WITH the cache:
+    Each sport is fetched at most once per cache_ttl_hours (default 6h).
+    8 sports x 1 fetch/day = ~8 credits/day = ~240/month on the free tier.
+    Sessions within the TTL reuse the cached snapshot for 0 credits.
+    Force a refresh by deleting data/feed_cache.json or passing --refresh.
 
-De-margining — the power method (patched):
-    Books load extra margin onto longshots (favourite-longshot bias), so
-    splitting the overround evenly (proportional method) OVERSTATES longshot
-    true probability and fabricates fake EV on big prices.  The power method
-    solves for k such that  sum((1/odds_i)^k) = 1  and uses p_i = q_i^k
-    (renormalised).  k > 1 shrinks longshots more than favourites — the
-    correct direction.  Expect longshot edges to shrink; that is honesty,
-    not a regression.
+Key failover:
+    Keys are tried in order: $ODDS_API_KEY -> FeedSettings.odds_api_key ->
+    each entry in FeedSettings.api_keys.  On 401/429 the next key is tried.
 
-Model probabilities in feed mode = cross-book power-devig MEDIAN.
+De-margining — power method:
+    Books load extra margin onto longshots (favourite-longshot bias), so we
+    solve for k with sum((1/odds_i)^k) = 1 and use p_i = q_i^k.  Model
+    probabilities in feed mode = cross-book power-devig MEDIAN.
 
-CLI helpers (run from repo root):
+CLI helpers (repo root):
     python3 -m feeds.oddsapi --list-sports   # discover valid sport keys
     python3 -m feeds.oddsapi --test          # one fetch, prints findings
 """
@@ -32,22 +30,32 @@ from __future__ import annotations
 import json
 import os
 import statistics
+import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
+from pathlib import Path
 
 from config.settings import FEED_SETTINGS
 from odds.comparator import OddsQuote, Selection
 
 _API_BASE = "https://api.the-odds-api.com/v4"
 _TIMEOUT = 15
+_H2H_NAME_TO_PICK = {"Draw": "Draw"}
+_CACHE_PATH = Path("data") / "feed_cache.json"
 
-_H2H_NAME_TO_PICK = {"Draw": "Draw"}  # team names map positionally at parse time
+# Hardened reads: these getattr defaults mean this module works even if
+# config.settings.py is an older version missing the newer fields.
+_CFG_API_KEYS = tuple(getattr(FEED_SETTINGS, "api_keys", ()) or ())
+_CFG_TTL_HOURS = float(getattr(FEED_SETTINGS, "cache_ttl_hours", 6.0))
+_CFG_MIN_BOOKS = int(getattr(FEED_SETTINGS, "min_books_for_consensus", 2))
+_CFG_SPORTS = tuple(getattr(FEED_SETTINGS, "feed_sports", ()) or ())
 
 
 class OddsApiFeed:
-    """Fetches events + prices and builds consensus-priced candidates."""
+    """Fetches events + prices (with cache) and builds consensus candidates."""
 
     def __init__(
         self,
@@ -56,22 +64,23 @@ class OddsApiFeed:
         regions: str | None = None,
         markets: str | None = None,
     ) -> None:
-        self.api_key = (
-            api_key
-            or os.environ.get("ODDS_API_KEY", "").strip()
-            or FEED_SETTINGS.odds_api_key
-        )
-        self.sports = tuple(sports) if sports else FEED_SETTINGS.feed_sports
+        keys = [os.environ.get("ODDS_API_KEY", "").strip()]
+        keys.append((api_key or FEED_SETTINGS.odds_api_key or "").strip())
+        keys.extend(str(k).strip() for k in _CFG_API_KEYS)
+        seen: set[str] = set()
+        self.api_keys: list[str] = [
+            k for k in keys if k and not (k in seen or seen.add(k))
+        ]
+        self.sports = tuple(sports) if sports else _CFG_SPORTS
         self.regions = regions or FEED_SETTINGS.regions
         self.markets = markets or FEED_SETTINGS.markets
 
     # ------------------------------------------------------------------ #
 
     def is_configured(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.api_keys)
 
     def _get(self, path: str, params: dict[str, str]) -> tuple[object, dict[str, str]]:
-        """GET the API; returns (parsed_json, response_headers)."""
         query = urllib.parse.urlencode(params)
         url = f"{_API_BASE}{path}?{query}"
         req = urllib.request.Request(url, headers={"User-Agent": "sporty-edge/1.0"})
@@ -83,41 +92,89 @@ class OddsApiFeed:
 
     def list_sports(self) -> list[dict]:
         """All valid sport keys (costs 1 credit)."""
-        data, _ = self._get("/sports", {"apiKey": self.api_key})
+        data, _ = self._get("/sports", {"apiKey": self.api_keys[0]})
         return data  # type: ignore[return-value]
 
     def _fetch_sport(self, sport_key: str) -> list[dict] | None:
-        try:
-            data, headers = self._get(
-                f"/sports/{sport_key}/odds",
-                {
-                    "apiKey": self.api_key,
-                    "regions": self.regions,
-                    "markets": self.markets,
-                    "oddsFormat": "decimal",
-                },
-            )
-            remaining = headers.get("x-requests-remaining", "?")
-            print(f"    feed: {sport_key:<28} events={len(data):<4} credits left ~{remaining}")
-            return data  # type: ignore[return-value]
-        except urllib.error.HTTPError as exc:
-            detail = ""
+        """Fetch one sport, failing over through the key list on 401/429."""
+        for i, key in enumerate(self.api_keys):
             try:
-                detail = str(json.loads(exc.read().decode("utf-8")).get("message", ""))
-            except Exception:
-                pass
-            if exc.code == 401:
-                print(f"    feed: {sport_key} -> 401 bad API key. Check ODDS_API_KEY.")
-            elif exc.code == 429:
-                print(f"    feed: {sport_key} -> 429 quota exhausted; falling back.")
-            elif exc.code == 422:
-                print(f"    feed: {sport_key} -> 422 invalid sport key (use --list-sports).")
-            else:
-                print(f"    feed: {sport_key} -> HTTP {exc.code} {detail}")
-            return None
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            print(f"    feed: {sport_key} -> network error: {exc!r}")
-            return None
+                data, headers = self._get(
+                    f"/sports/{sport_key}/odds",
+                    {
+                        "apiKey": key,
+                        "regions": self.regions,
+                        "markets": self.markets,
+                        "oddsFormat": "decimal",
+                    },
+                )
+                remaining = headers.get("x-requests-remaining", "?")
+                label = f"key{i + 1}" if len(self.api_keys) > 1 else "key"
+                print(
+                    f"    feed: {sport_key:<34} events={len(data):<4} "
+                    f"credits left ~{remaining} [{label}]"
+                )
+                return data  # type: ignore[return-value]
+            except urllib.error.HTTPError as exc:
+                detail = ""
+                try:
+                    detail = str(json.loads(exc.read().decode("utf-8")).get("message", ""))
+                except Exception:
+                    pass
+                if exc.code in (401, 429) and i + 1 < len(self.api_keys):
+                    print(
+                        f"    feed: {sport_key} -> HTTP {exc.code} on key{i + 1}; "
+                        f"trying next key..."
+                    )
+                    continue
+                if exc.code == 401:
+                    print(f"    feed: {sport_key} -> 401 all keys bad/expired.")
+                elif exc.code == 429:
+                    print(f"    feed: {sport_key} -> 429 quota exhausted on all keys.")
+                elif exc.code == 422:
+                    print(
+                        f"    feed: {sport_key} -> 422 invalid sport key "
+                        f"(run --list-sports and swap keys in settings)."
+                    )
+                else:
+                    print(f"    feed: {sport_key} -> HTTP {exc.code} {detail}")
+                return None
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                print(f"    feed: {sport_key} -> network error: {exc!r}")
+                return None
+        return None
+
+    # ------------------------------------------------------------------ #
+    # Cache
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _load_cache() -> dict[str, dict]:
+        """Return {sport_key: {"events": [...], "ts": epoch_seconds}}."""
+        if not _CACHE_PATH.exists():
+            return {}
+        try:
+            data = json.loads(_CACHE_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+        out: dict[str, dict] = {}
+        for sport, entry in (data.get("sports") or {}).items():
+            try:
+                events = entry.get("events")
+                ts = float(entry.get("ts", 0))
+                if isinstance(events, list) and ts > 0:
+                    out[str(sport)] = {"events": events, "ts": ts}
+            except (TypeError, ValueError, AttributeError):
+                continue
+        return out
+
+    @staticmethod
+    def _save_cache(merged: dict[str, dict]) -> None:
+        try:
+            _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _CACHE_PATH.write_text(json.dumps({"sports": merged}), encoding="utf-8")
+        except OSError as exc:
+            print(f"    cache: could not write ({exc!r}) — continuing uncached.")
 
     # ------------------------------------------------------------------ #
     # De-margining (power method)
@@ -139,7 +196,6 @@ class OddsApiFeed:
 
         raw_total = sum(q.values())
         if raw_total <= 1.0:
-            # No overround present: normalise whatever we have and return.
             if raw_total <= 0:
                 return None
             return {name: v / raw_total for name, v in q.items()}
@@ -165,6 +221,7 @@ class OddsApiFeed:
     # ------------------------------------------------------------------ #
 
     def _parse_event(self, event: dict) -> list[tuple[Selection, list[OddsQuote]]]:
+        min_books = _CFG_MIN_BOOKS
         home = event.get("home_team") or "?"
         away = event.get("away_team") or "?"
         label = f"{home} vs {away}"
@@ -217,7 +274,7 @@ class OddsApiFeed:
                     raw_quotes[pick].append(OddsQuote(book=book_title, decimal_odds=o))
 
         n_books = len(per_book_h2h)
-        if n_books >= FEED_SETTINGS.min_books_for_consensus:
+        if n_books >= min_books:
             market = "1X2" if "Draw" in devigged else "ML"
             for pick, probs in devigged.items():
                 consensus = float(statistics.median(probs))
@@ -247,7 +304,7 @@ class OddsApiFeed:
             ).most_common(2)]
             for line in common_lines:
                 books = totals_by_line.get(line, {})
-                if len(books) < FEED_SETTINGS.min_books_for_consensus:
+                if len(books) < min_books:
                     continue
                 over_ps: list[float] = []
                 over_quotes: list[OddsQuote] = []
@@ -286,25 +343,49 @@ class OddsApiFeed:
     # ------------------------------------------------------------------ #
 
     def collect(self) -> list[tuple[Selection, list[OddsQuote]]]:
-        """Fetch every configured sport and return consensus-priced candidates."""
+        """Fetch (or reuse cached) events for every configured sport.
+
+        Cache rule: a sport's snapshot is reused while younger than
+        cache_ttl_hours; otherwise it is fetched fresh.  Pass --refresh to
+        bypass the cache for one run.
+        """
         if not self.is_configured:
             return []
-        all_candidates: list[tuple[Selection, list[OddsQuote]]] = []
-        for sport_key in self.sports:
-            events = self._fetch_sport(sport_key)
-            if not events:
-                continue
-            for event in events:
-                all_candidates.extend(self._parse_event(event))
-        return all_candidates
+
+        force = "--refresh" in sys.argv
+        cache = {} if force else self._load_cache()
+        ttl = _CFG_TTL_HOURS
+        now = time.time()
+
+        merged: dict[str, dict] = {}
+        for sport in self.sports:
+            entry = cache.get(sport)
+            if entry is not None and (now - entry["ts"]) / 3600.0 < ttl:
+                age = (now - entry["ts"]) / 3600.0
+                print(
+                    f"    cache: {sport:<34} {len(entry['events'])} events, "
+                    f"age {age:.1f}h  [0 credits]"
+                )
+                merged[sport] = entry
+            else:
+                events = self._fetch_sport(sport)
+                if events is not None:
+                    merged[sport] = {"events": events, "ts": now}
+
+        if merged:
+            self._save_cache(merged)
+
+        candidates: list[tuple[Selection, list[OddsQuote]]] = []
+        for sport in self.sports:
+            for event in merged.get(sport, {}).get("events", []):
+                candidates.extend(self._parse_event(event))
+        return candidates
 
 
 if __name__ == "__main__":
-    import sys
-
     feed = OddsApiFeed()
     if not feed.is_configured:
-        print("No API key. Set ODDS_API_KEY or FeedSettings(odds_api_key=...).")
+        print("No API key. Run python3 setup_credentials.py or set ODDS_API_KEY.")
         print("Free key: https://the-odds-api.com")
         sys.exit(1)
     if "--list-sports" in sys.argv:

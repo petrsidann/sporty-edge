@@ -3,15 +3,18 @@ run_daily.py — the session runner.
 
 One betting session:
     1. Detect (or take --session) the current session.
-    2. Pull events + prices from The Odds API feed (automatic); fall back
-       to your CSV files if the feed is unconfigured or down.
-    3. EV scan.  If positive-EV bets exist -> normal tiers (SURESLIP /
-       singles / accas / SPEC).
-    4. If NO edge is found -> ACTION mode: the closest-to-value candidates
-       go out as clearly-labeled ACTION picks at a fixed stake.  The system
-       bets every session; it never claims an edge it did not measure.
-    5. Platform pick sheets -> console + Telegram, session-tagged.
-    6. Ledger entries tagged with the session.
+    2. Pull events + prices from The Odds API feed (cached, 6h TTL);
+       fall back to your CSV files if the feed is unavailable.
+    3. EV scan with a STALE-LINE GUARD: any candidate whose best price is
+       more than SUSPECT_RATIO above consensus fair odds is excluded —
+       divergences that large are broken feed lines, not real edges
+       (the sharp books ARE the market).
+    4. Dedupe guard: no slip is built containing a pick already PENDING
+       in the ledger (protects manual re-runs and scheduled runs that
+       land inside the cache TTL).
+    5. Slip tiers: SURESLIP -> singles -> accas -> SPEC; if no edge is
+       found, ACTION mode emits closest-to-value picks.
+    6. Platform pick sheets -> console + Telegram, session-tagged.
 
 Usage:
     python run_daily.py                 # auto-detect session
@@ -41,6 +44,11 @@ from utils.aggression import current_tier
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
 from utils.session import Session, by_name, detect
+
+# A best price more than 20% above consensus fair odds is almost always a
+# stale or wrong feed line rather than a real edge.  Genuine cross-book
+# edges rarely exceed ~10-15%; artifacts diverge by 30-70%.
+SUSPECT_RATIO: float = 1.20
 
 
 def _banner(title: str) -> None:
@@ -81,6 +89,42 @@ def _from_feed() -> list | None:
     candidates = feed.collect()
     print(f"  Feed: {len(candidates)} priced selections from consensus.")
     return candidates
+
+
+def _is_suspect(opp: BetOpportunity) -> bool:
+    """True when the best price diverges too far above consensus fair odds."""
+    fair = 1.0 / opp.selection.model_probability
+    return opp.decimal_odds / fair > SUSPECT_RATIO
+
+
+def _pending_leg_keys(logger: BetLogger) -> set[tuple[str, str, str]]:
+    """All (match_id, market, selection) keys currently PENDING in the ledger."""
+    keys: set[tuple[str, str, str]] = set()
+    for rec in logger.pending():
+        for leg in rec.get("legs", []):
+            keys.add(
+                (
+                    str(leg.get("match_id") or ""),
+                    str(leg.get("market") or ""),
+                    str(leg.get("selection") or ""),
+                )
+            )
+    return keys
+
+
+def _dedupe(slips: list[Slip], pending_keys: set[tuple[str, str, str]]) -> list[Slip]:
+    """Drop any slip containing a pick that is already PENDING."""
+    kept: list[Slip] = []
+    for slip in slips:
+        keys = {(l.match_id, l.market, l.selection) for l in slip.legs}
+        if keys & pending_keys:
+            print(
+                f"  .. dedupe: skipped {slip.slip_type} — pick already PENDING "
+                f"in the ledger."
+            )
+            continue
+        kept.append(slip)
+    return kept
 
 
 def main() -> None:
@@ -137,7 +181,7 @@ def main() -> None:
 
     print(f"  Data source    : {source}")
 
-    # ---------- EV scan ---------- #
+    # ---------- evaluate every candidate ---------- #
     _banner("Positive-EV scan")
     if source == "FEED":
         min_edge, min_ev = FEED_SETTINGS.min_edge_feed, FEED_SETTINGS.min_ev_feed
@@ -150,8 +194,18 @@ def main() -> None:
     all_opportunities: list[BetOpportunity] = [
         comparator.evaluate(sel, quotes) for sel, quotes in candidates
     ]
+
+    clean = [o for o in all_opportunities if not _is_suspect(o)]
+    suspects = [o for o in all_opportunities if _is_suspect(o)]
+    if suspects:
+        print(
+            f"  Stale-line guard: {len(suspects)} candidate(s) excluded "
+            f"(best price >{SUSPECT_RATIO:.0%} above consensus fair odds — "
+            f"broken feed lines, not edges)."
+        )
+
     value_bets = comparator.rank(
-        [o for o in all_opportunities if comparator.is_value(o)]
+        [o for o in clean if comparator.is_value(o)]
     )
     print(
         f"  Positive-EV opportunities: {len(value_bets)} "
@@ -181,22 +235,27 @@ def main() -> None:
     else:
         # ---------- ACTION mode: no edge, still deliver picks ----------- #
         print("  No measured edge — switching to ACTION mode (honest picks).")
-        _print_table(
-            sorted(all_opportunities, key=lambda o: o.edge, reverse=True),
-            limit=10,
-        )
+        _print_table(sorted(clean, key=lambda o: o.edge, reverse=True), limit=10)
         _banner("ACTION mode — closest-to-value picks, fixed stake")
         print(
             "  These picks carry NO measured edge.  They are the candidates "
             "closest to breakeven right now, labeled ACTION in the ledger so "
             "their ROI is tracked separately."
         )
-        slips = build_action_picks(all_opportunities)
+        slips = build_action_picks(clean)
 
+    # ---------- dedupe against pending ledger ---------- #
+    slips = _dedupe(slips, _pending_leg_keys(logger))
     if not slips:
-        print("  Nothing cleared even the ACTION filters — stand down.")
+        print(
+            "  All candidate picks are already PENDING in the ledger — "
+            "nothing new this session (dedupe guard)."
+        )
         if tg.is_configured:
-            tg.send(f"{session.emoji} {session.name}: nothing to send.")
+            tg.send(
+                f"{session.emoji} {session.name}: picks already pending — "
+                f"nothing new (dedupe guard)."
+            )
         return
 
     bankroll = Bankroll()

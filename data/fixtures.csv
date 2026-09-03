@@ -1,0 +1,4 @@
+sport,match_id,league,home,away,home_attack,home_defense,away_attack,away_defense,pa,pb,best_of,home_win_rate,away_win_rate,expected_margin,sigma
+soccer,EXAMPLE-1,Premier League,Arsenal,Chelsea,1.35,0.80,1.00,1.05,,,,,,,,,
+tennis,EXAMPLE-2,ATP 250,Player A,Player B,,,,,0.65,0.58,3,,,,,
+baseball,EXAMPLE-3,MLB,Team Alpha,Team Beta,,,,,,,0.56,0.46,,,

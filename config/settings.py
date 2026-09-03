@@ -1,13 +1,37 @@
 """
 Central configuration for sporty-edge.
 
-Priority platforms, league averages, risk gates, SURESLIP rules, staking,
-Telegram delivery, odds-feed settings, and ACTION mode all live here.
+Credentials are NOT stored in this file.  They live in data/credentials.json
+(git-ignored, written by setup_credentials.py) and are loaded at import
+time — so replacing this file can never wipe them.  Environment variables
+(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ODDS_API_KEY) still take priority,
+which is what GitHub Actions secrets use.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+# --------------------------------------------------------------------------- #
+# Credential loading (data/credentials.json, git-ignored)
+# --------------------------------------------------------------------------- #
+
+_CREDENTIALS_PATH = Path(__file__).resolve().parent.parent / "data" / "credentials.json"
+
+
+def _load_credentials() -> dict[str, Any]:
+    """Load credentials written by setup_credentials.py. Missing file = empty."""
+    try:
+        data = json.loads(_CREDENTIALS_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+_CREDS = _load_credentials()
 
 # --------------------------------------------------------------------------- #
 # Platforms
@@ -21,7 +45,6 @@ PLACEABLE_BOOKS: list[str] = [
     "Betfalme",
 ]
 
-# First in line when several placeable books are available.
 PRIORITY_BOOKS: list[str] = [
     "SportyBet",
     "Betika",
@@ -185,35 +208,46 @@ class StakingSettings:
 
 @dataclass(frozen=True)
 class TelegramSettings:
-    """Telegram bot credentials (env vars TELEGRAM_* take priority)."""
+    """Telegram bot credentials (loaded from data/credentials.json)."""
 
     bot_token: str = ""
     chat_id: str = ""
-    enabled: bool = False
+    enabled: bool = True
 
 
 @dataclass(frozen=True)
 class FeedSettings:
     """The Odds API feed configuration.
 
-    Credit cost per fetch = regions x markets, per sport.
-      h2h only          -> 1 credit/sport/fetch -> 4x4 sessions = 480/month
-      "h2h,totals"      -> 2 credits/sport/fetch -> 4x4 = 960 (needs paid tier)
-      More leagues: swap feed_sports keys.  Softer markets (EFL Championship,
-      Eredivisie, Primeira Liga) show more cross-book dispersion than EPL/La
-      Liga.  Tennis keys are tournament-scoped and rotate: run
-      `python3 -m feeds.oddsapi --list-sports` while a tournament is live and
-      swap keys in.
+    Credits WITH the cache: each sport fetches at most once per
+    cache_ttl_hours.  14 sports x ~1 refresh cycle/day = ~14 credits/day
+    = ~420/month on the free tier (failover keys extend this).
+
+    Invalid sport keys 422 harmlessly and are skipped.  Tennis keys are
+    tournament-scoped and rotate: run `python3 -m feeds.oddsapi
+    --list-sports` while a tournament is live and swap a key in.
     """
 
     odds_api_key: str = ""
+    api_keys: tuple[str, ...] = ()   # optional failover keys, tried in order
     regions: str = "eu"
     markets: str = "h2h"
+    cache_ttl_hours: float = 6.0
     feed_sports: tuple[str, ...] = (
         "soccer_epl",
+        "soccer_efl_champ",
         "soccer_spain_la_liga",
+        "soccer_italy_serie_a",
+        "soccer_germany_bundesliga",
+        "soccer_france_ligue_one",
+        "soccer_uefa_champs_league",
+        "soccer_netherlands_eredivisie",
+        "soccer_portugal_primeira_liga",
+        "soccer_turkey_super_league",
         "basketball_nba",
         "baseball_mlb",
+        "icehockey_nhl",              # empty until the NHL season starts — harmless
+        "mma_mixed_martial_arts",     # sparse (fight cards), but real
     )
     min_books_for_consensus: int = 2
     min_edge_feed: float = 0.02
@@ -222,14 +256,7 @@ class FeedSettings:
 
 @dataclass(frozen=True)
 class ActionSettings:
-    """ACTION mode — daily picks when no edge is detected.
-
-    When the +EV scan finds nothing, the system ranks every candidate by
-    proximity to value (highest edge, even if negative) and emits the best
-    ``max_picks`` as ACTION slips at a fixed stake.  Clearly labeled in the
-    ledger and on Telegram as no-edge picks, so their ROI is measured
-    honestly over time.
-    """
+    """ACTION mode — daily picks when no edge is detected."""
 
     max_picks: int = 2
     stake_units: float = 0.5
@@ -251,11 +278,28 @@ class ActionSettings:
             raise ValueError("min_books must be at least 1.")
 
 
+# --------------------------------------------------------------------------- #
+# Singletons — credentials injected from data/credentials.json
+# --------------------------------------------------------------------------- #
+
+_extra_keys = tuple(
+    str(k).strip() for k in _CREDS.get("odds_api_keys_extra", []) if str(k).strip()
+)
+
+TELEGRAM_SETTINGS = TelegramSettings(
+    bot_token=str(_CREDS.get("telegram_bot_token", "")),
+    chat_id=str(_CREDS.get("telegram_chat_id", "")),
+    enabled=True,
+)
+
+FEED_SETTINGS = FeedSettings(
+    odds_api_key=str(_CREDS.get("odds_api_key", "")),
+    api_keys=_extra_keys,
+)
+
 RISK_SETTINGS = RiskSettings()
 SURESLIP_SETTINGS = SureSlipSettings()
 STAKING_SETTINGS = StakingSettings()
-TELEGRAM_SETTINGS = TelegramSettings()
-FEED_SETTINGS = FeedSettings()
 ACTION_SETTINGS = ActionSettings()
 
 DEFAULT_UNIT_SIZE: float = STAKING_SETTINGS.unit_size

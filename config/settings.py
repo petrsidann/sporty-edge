@@ -231,7 +231,7 @@ class FeedSettings:
     odds_api_key: str = ""
     api_keys: tuple[str, ...] = ()   # optional failover keys, tried in order
     regions: str = "eu"
-    markets: str = "h2h"
+    markets: str = "h2h,totals"
     cache_ttl_hours: float = 6.0
     feed_sports: tuple[str, ...] = (
         "soccer_epl",

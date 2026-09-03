@@ -5,12 +5,11 @@ Inputs (per match, in data/fixtures.csv):
     pa : P(home player wins a point on their own serve)
     pb : P(away player wins a point on their own serve)
 
-Tour-level serve point-win rates sit around 0.60-0.68.  The DIFFERENCE
-between the two players is what moves the probabilities.
-
 Math chain (exact, documented):
     Game      closed form from the deuce recursion  D = p^2 / (1 - 2pq)
-    Tiebreak  exact point-level recursion with real serve alternation
+    Tiebreak  point-level recursion, exact serve order, TIES FOLDED INTO A
+              CLOSED FORM at 6-6 (see tiebreak_win_prob — a win-by-2
+              tiebreak has no score cap, so a naive recursion diverges)
     Set       dynamic program over game score (to 6, win by 2, TB at 6-6)
     Match     best-of-3: s^2 (3 - 2s)  |  best-of-5: s^3 (1 + 3(1-s) + 6(1-s)^2)
 where s = P(win one set).
@@ -55,18 +54,53 @@ def game_win_prob(p: float) -> float:
 
 @lru_cache(maxsize=None)
 def tiebreak_win_prob(pa: float, pb: float) -> float:
-    """P(home player wins a tiebreak to 7, win by 2), exact serve order."""
+    """P(home player wins a tiebreak to 7, win by 2), exact serve order.
+
+    Serving pattern (0-indexed points): home serves point 0, away serves
+    1-2, home 3-4, away 5-6, ... — so home serves t when
+    t == 0 or ((t - 1) // 2) % 2 == 1.
+
+    CRITICAL FIX (was a RecursionError): a win-by-2 tiebreak has NO score
+    cap — ties at 6-6, 7-7, 8-8... are all reachable.  Any tie (k, k),
+    k >= 6, is therefore folded into an exact closed form instead of
+    recursing.  With pair-serves (both points of the pair by one player):
+
+        w1 = pa * (1 - pb)            P(home takes both, home-first pair)
+        w2 = (1 - pa) * pb            P(home takes both, away-first pair)
+        s  = pa*pb + (1-pa)*(1-pb)    P(split, either order)
+
+        A = (w1 + s*w2) / (1 - s^2)   P(win | tie, next pair home-first)
+        B = (w2 + s*w1) / (1 - s^2)   P(win | tie, next pair away-first)
+
+    Whether the pair after a tie is home-first alternates with (a+b) mod 4
+    (verified against the serve pattern: tie at total 12 -> home-first,
+    14 -> away-first, 16 -> home-first, ...).
+    """
 
     def point_for_home(t: int) -> float:
-        # Real tiebreak serving: home serves point 0, then away serves
-        # points 1-2, home serves 3-4, away 5-6, ... Home serves point t
-        # iff t == 0 or ((t - 1) // 2) % 2 == 1.
         if t == 0 or ((t - 1) // 2) % 2 == 1:
             return pa
         return 1.0 - pb
 
+    w1 = pa * (1.0 - pb)
+    w2 = (1.0 - pa) * pb
+    s = pa * pb + (1.0 - pa) * (1.0 - pb)
+    denom = 1.0 - s * s
+
+    if denom <= 0.0:
+        # Degenerate extremes (pa or pb at a bound): simple alternating.
+        a_deuce = w1 / (w1 + w2) if (w1 + w2) > 0.0 else 0.5
+        b_deuce = w2 / (w1 + w2) if (w1 + w2) > 0.0 else 0.5
+    else:
+        a_deuce = (w1 + s * w2) / denom
+        b_deuce = (w2 + s * w1) / denom
+
     @lru_cache(maxsize=None)
     def f(a: int, b: int) -> float:
+        if a >= 6 and b >= 6 and a == b:
+            # Tie at 6-6 or beyond: closed form.  Next pair is home-first
+            # exactly when (a + b) % 4 == 0 (checked against serve order).
+            return a_deuce if (a + b) % 4 == 0 else b_deuce
         if a >= 7 and a - b >= 2:
             return 1.0
         if b >= 7 and b - a >= 2:
@@ -79,7 +113,12 @@ def tiebreak_win_prob(pa: float, pb: float) -> float:
 
 @lru_cache(maxsize=None)
 def set_win_prob(pa: float, pb: float) -> float:
-    """P(home player wins one set), home player serving first."""
+    """P(home player wins one set), home player serving first.
+
+    Games alternate serve each game (tracked by s).  At 6-6 the set goes
+    to a tiebreak.  Game scores never exceed 7 because (6,6) consumes the
+    tiebreak, so this recursion terminates in at most ~13 games.
+    """
     ga = game_win_prob(pa)
     gb = game_win_prob(pb)
 

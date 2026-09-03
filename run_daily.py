@@ -4,22 +4,24 @@ run_daily.py — the session runner.
 One betting session:
     1. Detect (or take --session) the current session.
     2. Pull events + prices from The Odds API feed (cached, 6h TTL),
-       filtered to the EVENT WINDOW: only games starting within
-       [min_hours_ahead, max_hours_ahead] (default 0-12h = "resolves
-       today").  Override per run with --hours N.  CSV fallback if the
-       feed is unavailable.
-    3. Guards: stale-line guard (>20% above consensus = broken line),
-       degenerate-market guard (+edge on 2+ exclusive outcomes = polluted
-       consensus, whole market excluded), ledger dedupe.
-    4. Slip tiers: SURESLIP -> singles -> accas -> SPEC; if no edge is
-       found, ACTION mode emits closest-to-value picks.
-    5. Optional forced accumulator:  --acca 3   (2-4 legs).
-    6. Platform pick sheets (with kickoff times) -> console + Telegram.
+       filtered to the EVENT WINDOW.  CSV fallback if feed unavailable.
+    3. Guards: stale-line (>20% above consensus = broken line),
+       degenerate-market (+edge on 2+ exclusive outcomes = polluted),
+       ledger dedupe.
+    4. Modes:
+         --blitz    : BLITZ — singles only, top-N across ALL sports in a
+                      15min-6h window.  Always emits picks: measured-edge
+                      picks labeled SINGLE, the rest labeled ACTION.
+         VALUE      : normal tiers (SURESLIP -> singles -> accas -> SPEC).
+         ACTION     : no edge found -> closest-to-value picks.
+    5. Optional: --acca N forces one multi-leg acca (2-4 legs).
+    6. Pick sheets (kickoff times included) -> console + Telegram.
 
 Usage:
-    python run_daily.py                          # auto session, 0-12h window
-    python run_daily.py --session evening --hours 6   # only tonight's games
-    python run_daily.py --acca 3                 # force one 3-leg acca
+    python run_daily.py                        # auto session, default window
+    python run_daily.py --blitz                # volume mode: 4+ singles, now
+    python run_daily.py --blitz --max-picks 8  # more picks
+    python run_daily.py --hours 6 --acca 3     # tonight only + forced acca
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ import sys
 from collections import defaultdict
 from dataclasses import replace
 
-from config.settings import FEED_SETTINGS, RISK_SETTINGS
+from config.settings import ACTION_SETTINGS, FEED_SETTINGS, RISK_SETTINGS
 from data.loader import (
     build_candidates,
     fixture_label,
@@ -38,7 +40,7 @@ from data.loader import (
 from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from odds.comparator import BetOpportunity, OddsComparator
-from slips.action import build_action_picks
+from slips.action import ActionConfig, build_action_picks
 from slips.generator import Slip, SlipGenerator, SlipGeneratorConfig, SlipLeg, SureSlipConfig
 from slips.platform_slip import PlatformSheet, choose_platform
 from slips.spec import build_spec_singles
@@ -47,11 +49,8 @@ from utils.bankroll import Bankroll
 from utils.logger import BetLogger
 from utils.session import Session, by_name, detect
 
-# A best price more than 20% above consensus fair odds is almost always a
-# stale or wrong feed line rather than a real edge.
 SUSPECT_RATIO: float = 1.20
 
-# Forced-acca floors (same quality bar as normal accas).
 FORCED_ACCA_MIN_LEG_PROB: float = 0.55
 FORCED_ACCA_MAX_LEG_ODDS: float = 2.50
 FORCED_ACCA_MAX_COMBINED_ODDS: float = 6.00
@@ -164,6 +163,53 @@ def _dedupe(slips: list[Slip], pending_keys: set[tuple[str, str, str]]) -> list[
     return kept
 
 
+def _merge_ranked(
+    value_bets: list[BetOpportunity], clean: list[BetOpportunity]
+) -> list[BetOpportunity]:
+    """Value bets first (EV-ranked), then the rest by edge descending."""
+    seen: set[tuple[str, str, str]] = set()
+    ranked: list[BetOpportunity] = []
+    for o in value_bets:
+        k = (o.selection.match_id, o.selection.market, o.selection.selection)
+        if k not in seen:
+            seen.add(k)
+            ranked.append(o)
+    for o in sorted(clean, key=lambda x: x.edge, reverse=True):
+        k = (o.selection.match_id, o.selection.market, o.selection.selection)
+        if k not in seen:
+            seen.add(k)
+            ranked.append(o)
+    return ranked
+
+
+def _build_blitz_slips(
+    ranked: list[BetOpportunity],
+    value_keys: set[tuple[str, str, str]],
+    max_picks: int,
+    single_stake: float,
+    action_stake: float,
+) -> list[Slip]:
+    """BLITZ: top-N singles, one per match, mixed honest labels."""
+    slips: list[Slip] = []
+    used_matches: set[str] = set()
+    for o in ranked:
+        if len(slips) >= max_picks:
+            break
+        if o.selection.match_id in used_matches:
+            continue
+        k = (o.selection.match_id, o.selection.market, o.selection.selection)
+        is_value = k in value_keys
+        slips.append(
+            Slip(
+                slip_type="SINGLE" if is_value else "ACTION",
+                legs=[SlipLeg.from_opportunity(o)],
+                stake_units=single_stake if is_value else action_stake,
+            )
+        )
+        used_matches.add(o.selection.match_id)
+    return slips
+
+
 def _build_forced_acca(
     opportunities: list[BetOpportunity],
     target_legs: int,
@@ -222,7 +268,9 @@ def main() -> None:
     if session is None:
         session = detect()
 
-    # ---------- optional --hours override ---------- #
+    # ---------- flags ---------- #
+    blitz = "--blitz" in sys.argv
+
     hours_override: float | None = None
     if "--hours" in sys.argv:
         idx = sys.argv.index("--hours")
@@ -235,7 +283,18 @@ def main() -> None:
             print("  --hours: use a number between 0.5 and 96 (e.g. --hours 6). Ignoring.")
             hours_override = None
 
-    # ---------- optional forced acca ---------- #
+    max_picks_override: int | None = None
+    if "--max-picks" in sys.argv:
+        idx = sys.argv.index("--max-picks")
+        raw = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else ""
+        try:
+            max_picks_override = int(raw)
+        except ValueError:
+            max_picks_override = None
+        if max_picks_override is None or not 1 <= max_picks_override <= 12:
+            print("  --max-picks: use 1-12. Ignoring.")
+            max_picks_override = None
+
     forced_acca_legs: int | None = None
     if "--acca" in sys.argv:
         idx = sys.argv.index("--acca")
@@ -250,12 +309,21 @@ def main() -> None:
 
     tg = TelegramNotifier()
 
+    # ---------- feed window ---------- #
+    if blitz and hours_override is None:
+        feed_min, feed_max = 0.25, 6.0        # blitz: bet now, settles today
+    elif hours_override is not None:
+        feed_min, feed_max = None, hours_override
+    else:
+        feed_min, feed_max = None, None       # settings defaults (0-12h)
+
     window_note = (
-        f"{hours_override:.0f}h" if hours_override is not None else "default"
+        f"BLITZ {feed_min}-{feed_max}h"
+        if blitz and hours_override is None
+        else (f"{hours_override:.0f}h" if hours_override is not None else "default")
     )
     _banner(
-        f"SPORTY-EDGE  |  {session.emoji} {session.name} SESSION"
-        f"  (event window: {window_note})"
+        f"SPORTY-EDGE  |  {session.emoji} {session.name} SESSION  ({window_note})"
     )
 
     logger = BetLogger()
@@ -264,8 +332,9 @@ def main() -> None:
 
     if tg.is_configured:
         tg.send(
-            f"{session.emoji} sporty-edge {session.name} session starting — "
-            f"tier [{tier.level}] {tier.name} | window {window_note}"
+            f"{session.emoji} sporty-edge {session.name}"
+            f"{' ⚡ BLITZ' if blitz else ''} starting — tier [{tier.level}] "
+            f"{tier.name} | window {window_note}"
         )
 
     # ---------- data: feed first, CSV fallback ---------- #
@@ -273,7 +342,16 @@ def main() -> None:
     candidates = None
     models: dict = {}
     try:
-        candidates = _from_feed(None, hours_override)
+        candidates = _from_feed(feed_min, feed_max)
+        if blitz and not candidates:
+            for wider in (12.0, 24.0):
+                if candidates:
+                    break
+                if wider <= (feed_max or 0.0):
+                    continue
+                print(f"  Blitz: no games inside {feed_max}h — widening to 0-{wider:.0f}h ...")
+                feed_max = wider
+                candidates = _from_feed(feed_min, feed_max)
     except Exception as exc:  # the session must never die on the feed
         print(f"  Feed failed unexpectedly: {exc!r}")
         candidates = None
@@ -315,7 +393,7 @@ def main() -> None:
     if suspects:
         print(
             f"  Stale-line guard: {len(suspects)} candidate(s) excluded "
-            f"(best price >{SUSPECT_RATIO:.0%} above consensus fair odds)."
+            f"(broken feed lines, not edges)."
         )
 
     clean = _drop_degenerate_markets(clean)
@@ -326,13 +404,34 @@ def main() -> None:
         f"(min edge {min_edge:.1%}, min EV {min_ev:.1%})"
     )
 
-    mode = "VALUE" if value_bets else "ACTION"
-    slips: list[Slip]
+    mode = "BLITZ" if blitz else ("VALUE" if value_bets else "ACTION")
+    slips: list[Slip] = []
 
-    if value_bets:
-        _print_table(value_bets)
-
+    if blitz:
+        # ---------------- BLITZ: always emit up to N singles ------------- #
+        max_picks = max_picks_override if max_picks_override else 4
+        value_keys = {
+            (o.selection.match_id, o.selection.market, o.selection.selection)
+            for o in value_bets
+        }
+        ranked = _merge_ranked(value_bets, clean)
+        _print_table(ranked[:10])
+        _banner(f"BLITZ MODE — top {max_picks} singles across all sports")
+        slips = _build_blitz_slips(
+            ranked,
+            value_keys,
+            max_picks=max_picks,
+            single_stake=tier.single_stake_units,
+            action_stake=ACTION_SETTINGS.stake_units,
+        )
+        n_value = sum(1 for s in slips if s.slip_type == "SINGLE")
+        print(
+            f"  Blitz: {len(slips)} singles built — {n_value} with measured "
+            f"edge (SINGLE), {len(slips) - n_value} closest-to-value (ACTION)."
+        )
+    elif value_bets:
         # ---------- value tiers: SURESLIP -> singles -> accas -> SPEC ---- #
+        _print_table(value_bets)
         _banner("Slip construction (stake sizes from your aggression tier)")
         gen_cfg = replace(
             SlipGeneratorConfig.from_settings(),
@@ -351,12 +450,10 @@ def main() -> None:
         print("  No measured edge — switching to ACTION mode (honest picks).")
         _print_table(sorted(clean, key=lambda o: o.edge, reverse=True), limit=10)
         _banner("ACTION mode — closest-to-value picks, fixed stake")
-        print(
-            "  These picks carry NO measured edge.  They are the candidates "
-            "closest to breakeven right now, labeled ACTION in the ledger so "
-            "their ROI is tracked separately."
-        )
-        slips = build_action_picks(clean)
+        act_cfg = ActionConfig.from_settings()
+        if max_picks_override:
+            act_cfg = replace(act_cfg, max_picks=max_picks_override)
+        slips = build_action_picks(clean, config=act_cfg)
 
     # ---------- optional forced accumulator ---------- #
     if forced_acca_legs:
@@ -417,7 +514,7 @@ def main() -> None:
             if tg.is_configured:
                 if slip.slip_type == "ACTION":
                     header = (
-                        "🎲 ACTION pick — no edge detected; ranked closest to "
+                        "🎲 ACTION pick — no measured edge; ranked closest to "
                         "value. Fixed stake."
                     )
                 elif slip.slip_type == "SPEC":

@@ -37,7 +37,6 @@ _CREDS = _load_credentials()
 # Platforms
 # --------------------------------------------------------------------------- #
 
-# The apps YOU hold accounts with. Every pick sheet loads on one of these.
 PLACEABLE_BOOKS: list[str] = [
     "SportyBet",
     "Betika",
@@ -52,19 +51,9 @@ PRIORITY_BOOKS: list[str] = [
     "Betfalme",
 ]
 
-# Data sources for price discovery (feed books). No accounts needed here.
 SUPPORTED_BOOKS: list[str] = [
-    "SportyBet",
-    "Betika",
-    "BetPawa",
-    "Betfalme",
-    "WekaWin",
-    "BetJam",
-    "LuckyPari",
-    "MozzartBet",
-    "Odibets",
-    "1xBet",
-    "Betway",
+    "SportyBet", "Betika", "BetPawa", "Betfalme", "WekaWin", "BetJam",
+    "LuckyPari", "MozzartBet", "Odibets", "1xBet", "Betway",
 ]
 
 # Place a leg when your app's odds are at least reference_odds * (1 - tolerance).
@@ -74,19 +63,6 @@ PRICE_TOLERANCE: float = 0.03  # 3%
 # --------------------------------------------------------------------------- #
 # Target leagues and scoring averages (soccer engine)
 # --------------------------------------------------------------------------- #
-
-TARGET_LEAGUES: dict[str, list[str]] = {
-    "Europe": [
-        "Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1",
-        "UEFA Champions League", "Eredivisie", "Primeira Liga",
-    ],
-    "Africa": [
-        "Egyptian Premier League", "Botola Pro (Morocco)",
-        "Tunisian Ligue Professionnelle 1", "DStv Premiership (South Africa)",
-        "Nigeria Professional Football League", "Kenyan Premier League",
-        "Tanzanian Premier League", "Ghana Premier League", "CAF Champions League",
-    ],
-}
 
 LEAGUE_AVERAGE_GOALS: dict[str, tuple[float, float]] = {
     "Premier League": (1.65, 1.35),
@@ -177,11 +153,7 @@ class SureSlipSettings:
 
 @dataclass(frozen=True)
 class StakingSettings:
-    """Bankroll and staking configuration.
-
-    Set initial_bankroll and unit_size to your REAL numbers — stakes print
-    in units of unit_size against this bankroll.
-    """
+    """Bankroll and staking configuration."""
 
     initial_bankroll: float = 10_000.0
     unit_size: float = 100.0
@@ -217,25 +189,31 @@ class TelegramSettings:
 
 @dataclass(frozen=True)
 class FeedSettings:
-    """The Odds API feed configuration.
+    """The Odds API feed configuration — GLOBAL coverage edition.
 
-    Credits WITH the cache: each sport fetches at most once per
-    cache_ttl_hours.  14 sports x ~1 refresh cycle/day = ~14 credits/day
-    = ~420/month on the free tier (failover keys extend this).
+    24 sport keys across every timezone so the 0-6h window is never empty:
+    KBO/NPB mornings EAT, J-League/K-League midday, Europe afternoons,
+    Brazil/Argentina late night, MLB overnight, NBA/NHL, MMA.
 
-    Invalid sport keys 422 harmlessly and are skipped.  Tennis keys are
-    tournament-scoped and rotate: run `python3 -m feeds.oddsapi
-    --list-sports` while a tournament is live and swap a key in.
+    CREDIT MATH (free tier = 500/month):
+        markets "h2h,totals" -> 2 credits/sport/refresh -> 48 per full refresh.
+        Realistic burn 50-100/day (scheduled runs mostly hit cache) ->
+        one key lasts ~5-10 days.  Failover keys extend this.
+        Downgrade to "h2h" only -> 24/refresh -> key lasts 2x longer.
+
+    Invalid keys (422) are skipped harmlessly.  Tennis keys are
+    tournament-scoped and rotate: check with --list-sports.
     """
 
     odds_api_key: str = ""
     api_keys: tuple[str, ...] = ()   # optional failover keys, tried in order
     regions: str = "eu"
     markets: str = "h2h,totals"
-    min_hours_ahead: float = 0.0              # skip events that already started
-    max_hours_ahead: float = 12.0             # "resolves today" window (hours)
     cache_ttl_hours: float = 6.0
+    min_hours_ahead: float = 0.0              # skip events that already started
+    max_hours_ahead: float = 12.0             # default "resolves today" window
     feed_sports: tuple[str, ...] = (
+        # --- Europe (afternoons/evenings EAT) ---
         "soccer_epl",
         "soccer_efl_champ",
         "soccer_spain_la_liga",
@@ -246,10 +224,22 @@ class FeedSettings:
         "soccer_netherlands_eredivisie",
         "soccer_portugal_primeira_liga",
         "soccer_turkey_super_league",
+        # --- Americas (evenings/overnight EAT) ---
+        "soccer_brazil_campeonato",
+        "soccer_argentina_primera_division",
+        "soccer_mexico_ligamx",
         "basketball_nba",
+        "basketball_euroleague",
         "baseball_mlb",
-        "icehockey_nhl",              # empty until the NHL season starts — harmless
-        "mma_mixed_martial_arts",     # sparse (fight cards), but real
+        # --- Asia-Pacific (mornings/midday EAT — fills the gap) ---
+        "baseball_npb",                # Nippon Professional Baseball
+        "baseball_kbo",                # Korean Baseball Organization
+        "soccer_japan_j_league",
+        "soccer_korea_kleague1",
+        "soccer_australia_aleague",
+        # --- Other ---
+        "icehockey_nhl",
+        "mma_mixed_martial_arts",
     )
     min_books_for_consensus: int = 2
     min_edge_feed: float = 0.02
@@ -258,14 +248,19 @@ class FeedSettings:
 
 @dataclass(frozen=True)
 class ActionSettings:
-    """ACTION mode — daily picks when no edge is detected."""
+    """ACTION mode — picks when no measured edge exists.
 
-    max_picks: int = 2
+    Loosened for volume: more picks per session, wider odds band, fewer
+    books required for the consensus to count.  The ledger labels these
+    ACTION and measures their ROI separately — data decides if it stays.
+    """
+
+    max_picks: int = 4
     stake_units: float = 0.5
     min_odds: float = 1.40
-    max_odds: float = 3.50
+    max_odds: float = 4.00
     min_prob: float = 0.25
-    min_books: int = 3
+    min_books: int = 2
 
     def __post_init__(self) -> None:
         if self.max_picks < 0:

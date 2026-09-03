@@ -1,12 +1,17 @@
 """
-CSV data pipeline — the two files YOU fill daily.
+CSV data pipeline — the fallback input files YOU fill daily.
 
     data/fixtures.csv : one row per match to model (any supported sport)
     data/odds.csv     : one row per price you read on a platform
 
-Unused columns can be left empty; documented defaults apply.  This is the
-single seam where real data enters the system — everything downstream
-(EV, slips, platform sheets, Telegram, ledger) is sport-agnostic.
+Robustness rules:
+    * Rows whose match_id starts with "EXAMPLE" are skipped with a note —
+      the shipped template must never generate real picks.
+    * One bad fixture row skips that row with a message; it never crashes
+      the session (a tennis bad-input used to kill the whole run).
+
+This is the single seam where manual data enters the system; the automated
+feed path (feeds/oddsapi.py) does not go through this module.
 """
 
 from __future__ import annotations
@@ -46,13 +51,25 @@ def fixture_label(row: dict[str, str]) -> str:
 
 
 def load_fixtures(path: Path = FIXTURES_PATH) -> list[dict[str, str]]:
-    """Read fixtures.csv; returns [] (with a message) when absent/empty."""
+    """Read fixtures.csv; skips EXAMPLE rows; returns [] when absent/empty."""
     if not path.exists():
         print(f"  !! {path} not found — create it from the template.")
         return []
     with path.open("r", encoding="utf-8", newline="") as fh:
         rows = [r for r in csv.DictReader(fh) if (r.get("match_id") or "").strip()]
-    return rows
+
+    real = [
+        r
+        for r in rows
+        if not str(r.get("match_id") or "").strip().upper().startswith("EXAMPLE")
+    ]
+    skipped = len(rows) - len(real)
+    if skipped:
+        print(
+            f"  ({skipped} EXAMPLE row(s) skipped — replace the template "
+            f"rows with real fixtures to use CSV mode.)"
+        )
+    return real
 
 
 def load_odds(
@@ -140,14 +157,25 @@ def build_candidates(
     fixtures: list[dict[str, str]],
     odds_map: dict[tuple[str, str, str], list[OddsQuote]],
 ) -> tuple[dict[str, Any], list[tuple[Selection, list[OddsQuote]]]]:
-    """Build models, then price every modelled market that has real quotes."""
+    """Build models, then price every modelled market that has real quotes.
+
+    A fixture row that fails to build a model is skipped with a message —
+    one bad row can never take down a session.
+    """
     models: dict[str, Any] = {}
     candidates: list[tuple[Selection, list[OddsQuote]]] = []
     unpriced = 0
 
     for row in fixtures:
         match_id = (row.get("match_id") or "").strip()
-        model = build_model(row)
+        try:
+            model = build_model(row)
+        except Exception as exc:
+            print(
+                f"  !! skipped fixture {match_id or '?'}: "
+                f"{exc.__class__.__name__}: {exc}"
+            )
+            continue
         models[match_id] = model
         label = fixture_label(row)
         league = (row.get("league") or "").strip()

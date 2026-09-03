@@ -8,10 +8,10 @@ How a sheet is built:
     load platform  : the first app you hold an account with
                      (PLACEABLE_BOOKS: SportyBet / Betika / BetPawa / Betfalme).
 
-Each leg shows the reference odds and the MINIMUM price at which to place it
-on your app (reference * (1 - PRICE_TOLERANCE)).  If your app's price is at
-or above that minimum, place the leg; if it is far below, skip the leg —
-the value is gone.
+Each line shows the kickoff time (EAT), the reference odds, and the MINIMUM
+price at which to place the leg on your app (reference * (1 - tolerance)).
+The kickoff time rides inside the match label from the feed, so console,
+Telegram, and the ledger all show when the game starts.
 
 The booking code itself is minted by the platform's app when you assemble
 the picks there (SportyBet 'Book', Betika 'Book Bet').  The system then
@@ -55,7 +55,7 @@ class PlatformSheet:
         return self.slip.combined_prob * self.combined_odds - 1.0
 
     def render(self, bet_id: str = "") -> str:
-        width = 70
+        width = 84
         bar = "=" * width
         sub = "-" * width
         bet_ref = bet_id or f"BET-{self.slip.slip_id}"
@@ -74,8 +74,8 @@ class PlatformSheet:
         out.append(sub)
         for ln in self.lines:
             out.append(
-                f" {ln.index}. {ln.match_label:<32} {ln.pick:<16} "
-                f"ref @ {ln.odds:<5.2f}  place if ≥ {ln.place_min_odds:.2f}"
+                f" {ln.index}. {ln.match_label:<48} {ln.pick:<14} "
+                f"ref @ {ln.odds:<5.2f}  place if >= {ln.place_min_odds:.2f}"
             )
         out.append(sub)
         out.append(f" Combined ref odds : {self.combined_odds:.2f}")
@@ -157,7 +157,7 @@ def load_steps(platform: str, bet_id: str) -> list[str]:
     """Numbered instructions for loading one slip on your app."""
     return [
         f"Open {platform} and add the picks above, in the same order.",
-        "For each leg: if your app's odds are ≥ the 'place if ≥' number, keep "
+        "For each leg: if your app's odds are >= the 'place if >=' number, keep "
         "it. If clearly below, skip that leg — the value has moved.",
         "Set your stake (the sheet shows units; 1 unit = your configured size).",
         "Tap Book / Book Bet and copy the booking code the app gives you.",

@@ -1,5 +1,16 @@
 """
-The Odds API feed — automated data source with caching and key failover.
+The Odds API feed — automated data source with caching, key failover,
+and an event-time window.
+
+Event window (the "bet now, know tonight" feature):
+    Every event from the API carries `commence_time`.  Events outside the
+    window [min_hours_ahead, max_hours_ahead] are skipped BEFORE pricing,
+    so the system only ever flags games that start soon and settle today.
+    Defaults come from FeedSettings (0h..12h = "resolves today"); run_daily
+    can override per run with  --hours N.  The filter applies at parse time
+    on cached data, so changing the window costs ZERO credits.
+    Every candidate's match label now ends with its kickoff in EAT
+    (e.g. "· Wed 21:10 EAT"), and that time flows through to pick sheets.
 
 Setup (one time):
     1. Register free at https://the-odds-api.com (500 free credits/month).
@@ -7,9 +18,8 @@ Setup (one time):
 
 Credit math WITH the cache:
     Each sport is fetched at most once per cache_ttl_hours (default 6h).
-    8 sports x 1 fetch/day = ~8 credits/day = ~240/month on the free tier.
-    Sessions within the TTL reuse the cached snapshot for 0 credits.
-    Force a refresh by deleting data/feed_cache.json or passing --refresh.
+    14 sports x ~1 refresh cycle/day = ~28 credits/day with totals on.
+    Force a refresh: delete data/feed_cache.json or pass --refresh.
 
 Key failover:
     Keys are tried in order: $ODDS_API_KEY -> FeedSettings.odds_api_key ->
@@ -36,6 +46,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config.settings import FEED_SETTINGS
@@ -46,16 +57,37 @@ _TIMEOUT = 15
 _H2H_NAME_TO_PICK = {"Draw": "Draw"}
 _CACHE_PATH = Path("data") / "feed_cache.json"
 
-# Hardened reads: these getattr defaults mean this module works even if
-# config.settings.py is an older version missing the newer fields.
+# Hardened reads: this module works even if config.settings.py is older.
 _CFG_API_KEYS = tuple(getattr(FEED_SETTINGS, "api_keys", ()) or ())
 _CFG_TTL_HOURS = float(getattr(FEED_SETTINGS, "cache_ttl_hours", 6.0))
 _CFG_MIN_BOOKS = int(getattr(FEED_SETTINGS, "min_books_for_consensus", 2))
 _CFG_SPORTS = tuple(getattr(FEED_SETTINGS, "feed_sports", ()) or ())
+_CFG_MIN_HOURS = float(getattr(FEED_SETTINGS, "min_hours_ahead", 0.0))
+_CFG_MAX_HOURS = float(getattr(FEED_SETTINGS, "max_hours_ahead", 12.0))
+
+_EAT = timezone(timedelta(hours=3))  # Nairobi time, shown on every sheet
+
+
+def _parse_iso(ts: str) -> datetime | None:
+    """Parse an ISO8601 timestamp ('Z' suffix tolerated); None on failure."""
+    try:
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _kickoff_eat(ts: str) -> str:
+    """Human kickoff time in EAT, e.g. 'Wed 21:10 EAT'."""
+    dt = _parse_iso(ts)
+    if dt is None:
+        return "?"
+    return dt.astimezone(_EAT).strftime("%a %H:%M EAT")
 
 
 class OddsApiFeed:
-    """Fetches events + prices (with cache) and builds consensus candidates."""
+    """Fetches events + prices (with cache + time window) and builds
+    consensus-priced candidates."""
 
     def __init__(
         self,
@@ -63,6 +95,8 @@ class OddsApiFeed:
         sports: tuple[str, ...] | None = None,
         regions: str | None = None,
         markets: str | None = None,
+        min_hours_ahead: float | None = None,
+        max_hours_ahead: float | None = None,
     ) -> None:
         keys = [os.environ.get("ODDS_API_KEY", "").strip()]
         keys.append((api_key or FEED_SETTINGS.odds_api_key or "").strip())
@@ -74,6 +108,12 @@ class OddsApiFeed:
         self.sports = tuple(sports) if sports else _CFG_SPORTS
         self.regions = regions or FEED_SETTINGS.regions
         self.markets = markets or FEED_SETTINGS.markets
+        self.min_hours_ahead = (
+            _CFG_MIN_HOURS if min_hours_ahead is None else float(min_hours_ahead)
+        )
+        self.max_hours_ahead = (
+            _CFG_MAX_HOURS if max_hours_ahead is None else float(max_hours_ahead)
+        )
 
     # ------------------------------------------------------------------ #
 
@@ -200,7 +240,6 @@ class OddsApiFeed:
                 return None
             return {name: v / raw_total for name, v in q.items()}
 
-        # Bisection for k in (1, 5): f(k) = sum(q_i^k) is decreasing in k.
         lo, hi = 1.0, 5.0
         for _ in range(60):
             mid = (lo + hi) / 2.0
@@ -224,7 +263,9 @@ class OddsApiFeed:
         min_books = _CFG_MIN_BOOKS
         home = event.get("home_team") or "?"
         away = event.get("away_team") or "?"
-        label = f"{home} vs {away}"
+        # Kickoff time rides in the label so tables, sheets, ledger and
+        # Telegram all show WHEN this game starts, everywhere, for free.
+        label = f"{home} vs {away} · {_kickoff_eat(event.get('commence_time', ''))}"
         league = event.get("sport_title") or ""
         match_id = str(event.get("id") or "")[:10].upper() or "UNKNOWN"
 
@@ -343,11 +384,12 @@ class OddsApiFeed:
     # ------------------------------------------------------------------ #
 
     def collect(self) -> list[tuple[Selection, list[OddsQuote]]]:
-        """Fetch (or reuse cached) events for every configured sport.
+        """Fetch (or reuse cached) events, apply the time window, price.
 
-        Cache rule: a sport's snapshot is reused while younger than
-        cache_ttl_hours; otherwise it is fetched fresh.  Pass --refresh to
-        bypass the cache for one run.
+        Window rule: an event is kept only if it starts within
+        [min_hours_ahead, max_hours_ahead] from now.  Applies to cached
+        data too, so changing the window mid-day costs zero credits.
+        Pass --refresh to bypass the cache for one run.
         """
         if not self.is_configured:
             return []
@@ -375,10 +417,30 @@ class OddsApiFeed:
         if merged:
             self._save_cache(merged)
 
+        now_dt = datetime.now(timezone.utc)
+        total_events = 0
+        kept_events = 0
         candidates: list[tuple[Selection, list[OddsQuote]]] = []
+
         for sport in self.sports:
             for event in merged.get(sport, {}).get("events", []):
+                total_events += 1
+                dt = _parse_iso(event.get("commence_time") or "")
+                if dt is not None:
+                    hours_ahead = (dt - now_dt).total_seconds() / 3600.0
+                    if (
+                        hours_ahead < self.min_hours_ahead
+                        or hours_ahead > self.max_hours_ahead
+                    ):
+                        continue  # outside the window: not bettable-today
+                kept_events += 1
                 candidates.extend(self._parse_event(event))
+
+        print(
+            f"  Window: events starting {self.min_hours_ahead:.0f}-"
+            f"{self.max_hours_ahead:.0f}h from now — kept {kept_events}/"
+            f"{total_events} events."
+        )
         return candidates
 
 
@@ -396,5 +458,5 @@ if __name__ == "__main__":
         print(f"candidates: {len(cands)}")
         for sel, quotes in cands[:10]:
             best = max(q.decimal_odds for q in quotes)
-            print(f"  {sel.match_label:<34} {sel.market}->{sel.selection:<5} "
+            print(f"  {sel.match_label:<48} {sel.market}->{sel.selection:<5} "
                   f"consensus {sel.model_probability:.1%} best {best:.2f}")

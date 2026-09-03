@@ -232,6 +232,8 @@ class FeedSettings:
     api_keys: tuple[str, ...] = ()   # optional failover keys, tried in order
     regions: str = "eu"
     markets: str = "h2h,totals"
+    min_hours_ahead: float = 0.0              # skip events that already started
+    max_hours_ahead: float = 12.0             # "resolves today" window (hours)
     cache_ttl_hours: float = 6.0
     feed_sports: tuple[str, ...] = (
         "soccer_epl",

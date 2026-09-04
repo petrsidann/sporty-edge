@@ -41,14 +41,14 @@ PLACEABLE_BOOKS: list[str] = [
     "SportyBet",
     "Betika",
     "BetPawa",
-    "Betfalme",
+    "1xBet",
 ]
 
 PRIORITY_BOOKS: list[str] = [
     "SportyBet",
     "Betika",
     "BetPawa",
-    "Betfalme",
+    "1xBet",
 ]
 
 SUPPORTED_BOOKS: list[str] = [

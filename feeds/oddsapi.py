@@ -493,6 +493,11 @@ class OddsApiFeed:
 
         if merged:
             self._save_cache(merged)
+        if not merged:
+            stale = self._load_cache()
+            if stale:
+                print("    !! all fetches failed - using STALE cached odds; verify prices on your app before staking.")
+                merged = stale
 
         now_dt = datetime.now(timezone.utc)
         total_events = 0

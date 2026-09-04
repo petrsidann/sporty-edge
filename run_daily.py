@@ -538,6 +538,17 @@ def main() -> None:
     except Exception as exc:  # CLV must never take down a session
         print(f"  CLV: snapshot failed unexpectedly: {exc!r}")
 
+    # ---------- closing line snapshot (CLV instrumentation) ---------- #
+    # Costs credits only for sports with an event inside the closing window.
+    clv_line = "CLV: snapshot skipped."
+    try:
+        from utils.clv import clv_summary_line, closing_metrics, snapshot_closing
+
+        snapshot_closing(logger.pending())
+        clv_line = clv_summary_line(closing_metrics())
+    except Exception as exc:  # CLV must never take down a session
+        print(f"  CLV: snapshot failed unexpectedly: {exc!r}")
+
     # ---------- summary ---------- #
     _banner(f"Session summary ({mode} mode)")
     total_stake = sum(s.stake_units for s in placed)
@@ -552,19 +563,13 @@ def main() -> None:
     print(f"  Metrics: {logger.metrics()}")
 
     if tg.is_configured:
-        # ONE message per session: all pick sheets + the session summary,
-        # joined and split at 3900 chars by the notifier.  Kickoff times
-        # (EAT) ride inside every pick line.  Plain text, no markdown.
-        joined: list[str] = [f"{session.emoji} {session.name} ({mode}, {source})"]
-        joined.extend(tg_parts)
-        joined.append("—" * 20)
-        joined.append(f"📊 Summary ({mode}, {source})")
-        joined += [f"• {s.summary_line()}" for s in placed]
-        joined.append(f"Stake {total_stake:.2f}u | Expected P/L {expected_profit:+.2f}u")
-        joined.append(clv_line)
-        joined.append("Load each sheet on its named platform, register the code, "
-                      "settle after the matches.")
-        tg.send("\n".join(joined))
+        lines = [f"📊 {session.emoji} {session.name} summary ({mode}, {source})"]
+        lines += [f"• {s.summary_line()}" for s in placed]
+        lines.append(f"Stake {total_stake:.2f}u | Expected P/L {expected_profit:+.2f}u")
+        lines.append(clv_line)
+        lines.append("Load each sheet on its named platform, register the code, "
+                     "settle after the matches.")
+        tg.send("\n".join(lines))
 
 
 if __name__ == "__main__":

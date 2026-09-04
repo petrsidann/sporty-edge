@@ -25,7 +25,7 @@ _CREDENTIALS_PATH = Path(__file__).resolve().parent.parent / "data" / "credentia
 def _load_credentials() -> dict[str, Any]:
     """Load credentials written by setup_credentials.py. Missing file = empty."""
     try:
-        data = json.loads(_CREDENTIALS_PATH.read_text(encoding="utf-8"))
+        data = json.loads(_CREDENTIALS_PATH.read_text(encoding="utf-8-sig"))
         return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
@@ -196,10 +196,21 @@ class FeedSettings:
     Brazil/Argentina late night, MLB overnight, NBA/NHL, MMA.
 
     CREDIT MATH (free tier = 500/month):
-        markets "h2h,totals" -> 2 credits/sport/refresh -> 48 per full refresh.
-        Realistic burn 50-100/day (scheduled runs mostly hit cache) ->
-        one key lasts ~5-10 days.  Failover keys extend this.
-        Downgrade to "h2h" only -> 24/refresh -> key lasts 2x longer.
+        The Odds API bills 1 credit per MARKET per sport per refresh:
+            h2h                       -> 1 credit/sport/refresh
+            h2h + totals              -> 2 credits/sport/refresh
+            h2h + totals + spreads    -> 3 credits/sport/refresh
+        markets below therefore costs 3 credits/sport/refresh
+        (~69 per full 23-sport refresh).  With the 6h cache the realistic
+        burn is 1-3 refresh cycles/day; scheduled runs mostly hit cache.
+        Failover keys extend this.
+
+    SPREADS TOGGLE:
+        ``include_spreads`` controls whether the "spreads" market is
+        requested at all (spreads are 2-way: the handicap lives in each
+        outcome's "point" field, e.g. Home -1.5 / Away +1.5).  Set it to
+        False (or drop ",spreads" from a custom ``markets`` string) to cut
+        spend from 3 to 2 credits/sport/refresh.
 
     Invalid keys (422) are skipped harmlessly.  Tennis keys are
     tournament-scoped and rotate: check with --list-sports.
@@ -209,6 +220,7 @@ class FeedSettings:
     api_keys: tuple[str, ...] = ()   # optional failover keys, tried in order
     regions: str = "eu"
     markets: str = "h2h,totals"
+    include_spreads: bool = True
     cache_ttl_hours: float = 6.0
     min_hours_ahead: float = 0.0              # skip events that already started
     max_hours_ahead: float = 12.0             # default "resolves today" window
@@ -244,6 +256,12 @@ class FeedSettings:
     min_books_for_consensus: int = 2
     min_edge_feed: float = 0.02
     min_ev_feed: float = 0.02
+
+    def effective_markets(self) -> str:
+        """The markets string actually sent to the API (spreads appended on)."""
+        if self.include_spreads and "spreads" not in self.markets:
+            return f"{self.markets},spreads"
+        return self.markets
 
 
 @dataclass(frozen=True)

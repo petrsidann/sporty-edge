@@ -150,13 +150,15 @@ class BetLogger:
         return [r for r in self._read_all() if r["status"] != "PENDING"]
 
     def metrics(self) -> dict[str, float | int]:
-        """Win rate, staked, profit, ROI over settled bets (units)."""
+        """Win rate, staked, profit, ROI over settled bets (units), plus the
+        closing-line metrics (beat_close_rate, avg_clv) when a CLV history
+        exists in data/closing.jsonl (see utils/clv.py)."""
         records = self._read_all()
         settled = [r for r in records if r["status"] != "PENDING"]
         staked = sum(float(r["stake_units"]) for r in settled)
         profit = sum(float(r["profit_units"]) for r in settled)
         wins = sum(1 for r in settled if r["status"] == "WIN")
-        return {
+        metrics: dict[str, float | int] = {
             "total_bets": len(records),
             "pending": len(records) - len(settled),
             "settled": len(settled),
@@ -166,6 +168,11 @@ class BetLogger:
             "profit_units": round(profit, 2),
             "roi": round(profit / staked, 4) if staked > 0 else 0.0,
         }
+        # Lazily imported so the ledger never depends on the feed at load time.
+        from utils.clv import closing_metrics
+
+        metrics.update(closing_metrics())
+        return metrics
 
     def summary_frame(self) -> pd.DataFrame:
         rows: list[dict[str, Any]] = []

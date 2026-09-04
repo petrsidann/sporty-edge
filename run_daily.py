@@ -503,28 +503,40 @@ def main() -> None:
         print(slip.render())
         print(f"  -> logged as {bet_id} (PENDING, {session.name})")
 
-    # ---------- sheets + Telegram ---------- #
+    # ---------- sheets: console print + one Telegram buffer ---------- #
     _banner("Platform pick sheets (console + Telegram)")
+    tg_parts: list[str] = []
     for slip in placed:
         sheet: PlatformSheet | None = choose_platform(slip)
         bet_id = bet_ids[slip.slip_id]
         if sheet is not None:
             text = sheet.render(bet_id=bet_id)
-            print(text)
-            if tg.is_configured:
-                if slip.slip_type == "ACTION":
-                    header = (
-                        "🎲 ACTION pick — no measured edge; ranked closest to "
-                        "value. Fixed stake."
-                    )
-                elif slip.slip_type == "SPEC":
-                    header = "⚠ SPEC pick — quarter-stake outlier play."
-                else:
-                    header = f"{session.emoji} {session.name}"
-                tg.send(f"{header}\n\n{text}")
         else:
-            print(slip.render())
+            text = slip.render()
+        print(text)
         print()
+        if tg.is_configured:
+            if slip.slip_type == "ACTION":
+                header = (
+                    "🎲 ACTION pick — no measured edge; ranked closest to "
+                    "value. Fixed stake."
+                )
+            elif slip.slip_type == "SPEC":
+                header = "⚠ SPEC pick — quarter-stake outlier play."
+            else:
+                header = f"{session.emoji} {session.name}"
+            tg_parts.append(f"{header}\n\n{text}")
+
+    # ---------- closing line snapshot (CLV instrumentation) ---------- #
+    # Costs credits only for sports with an event inside the closing window.
+    clv_line = "CLV: snapshot skipped."
+    try:
+        from utils.clv import clv_summary_line, closing_metrics, snapshot_closing
+
+        snapshot_closing(logger.pending())
+        clv_line = clv_summary_line(closing_metrics())
+    except Exception as exc:  # CLV must never take down a session
+        print(f"  CLV: snapshot failed unexpectedly: {exc!r}")
 
     # ---------- summary ---------- #
     _banner(f"Session summary ({mode} mode)")
@@ -536,15 +548,23 @@ def main() -> None:
         f"\n  Session {session.name} [{mode}] | Slips: {len(placed)} | "
         f"Stake: {total_stake:.2f}u | Expected P/L: {expected_profit:+.2f}u"
     )
+    print(f"  {clv_line}")
     print(f"  Metrics: {logger.metrics()}")
 
     if tg.is_configured:
-        lines = [f"📊 {session.emoji} {session.name} summary ({mode}, {source})"]
-        lines += [f"• {s.summary_line()}" for s in placed]
-        lines.append(f"Stake {total_stake:.2f}u | Expected P/L {expected_profit:+.2f}u")
-        lines.append("Load each sheet on its named platform, register the code, "
-                     "settle after the matches.")
-        tg.send("\n".join(lines))
+        # ONE message per session: all pick sheets + the session summary,
+        # joined and split at 3900 chars by the notifier.  Kickoff times
+        # (EAT) ride inside every pick line.  Plain text, no markdown.
+        joined: list[str] = [f"{session.emoji} {session.name} ({mode}, {source})"]
+        joined.extend(tg_parts)
+        joined.append("—" * 20)
+        joined.append(f"📊 Summary ({mode}, {source})")
+        joined += [f"• {s.summary_line()}" for s in placed]
+        joined.append(f"Stake {total_stake:.2f}u | Expected P/L {expected_profit:+.2f}u")
+        joined.append(clv_line)
+        joined.append("Load each sheet on its named platform, register the code, "
+                      "settle after the matches.")
+        tg.send("\n".join(joined))
 
 
 if __name__ == "__main__":

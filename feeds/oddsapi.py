@@ -18,7 +18,8 @@ Setup (one time):
 
 Credit math WITH the cache:
     Each sport is fetched at most once per cache_ttl_hours (default 6h).
-    14 sports x ~1 refresh cycle/day = ~28 credits/day with totals on.
+    1 credit per market per sport per refresh: h2h+totals+spreads = 3
+    credits/sport/refresh (see FeedSettings for the full table).
     Force a refresh: delete data/feed_cache.json or pass --refresh.
 
 Key failover:
@@ -107,7 +108,7 @@ class OddsApiFeed:
         ]
         self.sports = tuple(sports) if sports else _CFG_SPORTS
         self.regions = regions or FEED_SETTINGS.regions
-        self.markets = markets or FEED_SETTINGS.markets
+        self.markets = markets or FEED_SETTINGS.effective_markets()
         self.min_hours_ahead = (
             _CFG_MIN_HOURS if min_hours_ahead is None else float(min_hours_ahead)
         )
@@ -119,6 +120,27 @@ class OddsApiFeed:
 
     def is_configured(self) -> bool:
         return bool(self.api_keys)
+
+    def sports_with_events_within(self, window_hours: float) -> tuple[str, ...]:
+        """Sport keys with at least one cached event starting within the window.
+
+        Reads the local cache only — costs ZERO credits.  Used by the CLV
+        snapshot to refresh just the sports that actually have a match near
+        kickoff instead of the whole slate.
+        """
+        cache = self._load_cache()
+        now_dt = datetime.now(timezone.utc)
+        hot: list[str] = []
+        for sport, entry in cache.items():
+            for event in entry.get("events", []):
+                dt = _parse_iso(event.get("commence_time") or "")
+                if dt is None:
+                    continue
+                hours_ahead = (dt - now_dt).total_seconds() / 3600.0
+                if 0.0 <= hours_ahead <= window_hours:
+                    hot.append(sport)
+                    break
+        return tuple(hot)
 
     def _get(self, path: str, params: dict[str, str]) -> tuple[object, dict[str, str]]:
         query = urllib.parse.urlencode(params)
@@ -271,6 +293,7 @@ class OddsApiFeed:
 
         per_book_h2h: dict[str, dict[str, float]] = {}
         totals_by_line: dict[float, dict[str, dict[str, float]]] = defaultdict(dict)
+        spreads_by_line: dict[float, dict[str, dict[str, float]]] = defaultdict(dict)
 
         for book in event.get("bookmakers") or []:
             book_title = book.get("title") or book.get("key") or "?"
@@ -298,6 +321,23 @@ class OddsApiFeed:
                         price = float(out.get("price") or 0.0)
                         if side in ("Over", "Under") and price > 1.0:
                             totals_by_line[float(points)].setdefault(book_title, {})[side] = price
+                elif mkey == "spreads":
+                    # 2-way handicap market: the line lives in each outcome's
+                    # "point" field (home -1.5 / away +1.5 are the same line).
+                    for out in market.get("outcomes") or []:
+                        name = out.get("name") or ""
+                        point = out.get("point")
+                        price = float(out.get("price") or 0.0)
+                        if point is None or price <= 1.0:
+                            continue
+                        if name == home:
+                            pick = "Home"
+                        elif name == away:
+                            pick = "Away"
+                        else:
+                            continue
+                        line = round(abs(float(point)), 2)
+                        spreads_by_line[line].setdefault(book_title, {})[pick] = price
 
         candidates: list[tuple[Selection, list[OddsQuote]]] = []
 
@@ -379,22 +419,59 @@ class OddsApiFeed:
                             )
                         )
 
+        # ---- spreads consensus (per line; 2-way Home/Away) --------------- #
+        if "spreads" in self.markets:
+            for line, books in spreads_by_line.items():
+                if len(books) < min_books:
+                    continue
+                home_ps: list[float] = []
+                home_quotes: list[OddsQuote] = []
+                away_quotes: list[OddsQuote] = []
+                for book_title, sides in books.items():
+                    dv = self._devig(sides)
+                    if dv is None or "Home" not in dv:
+                        continue
+                    home_ps.append(dv["Home"])
+                    if "Home" in sides:
+                        home_quotes.append(OddsQuote(book=book_title, decimal_odds=sides["Home"]))
+                    if "Away" in sides:
+                        away_quotes.append(OddsQuote(book=book_title, decimal_odds=sides["Away"]))
+                if not home_ps:
+                    continue
+                consensus_home = float(statistics.median(home_ps))
+                market = f"SPREAD {line:g}"
+                for pick, p, quotes in (
+                    ("Home", consensus_home, home_quotes),
+                    ("Away", 1.0 - consensus_home, away_quotes),
+                ):
+                    if 0.02 <= p <= 0.98 and quotes:
+                        candidates.append(
+                            (
+                                Selection(
+                                    match_id=match_id, match_label=label,
+                                    league=league, market=market,
+                                    selection=pick, model_probability=p,
+                                ),
+                                quotes,
+                            )
+                        )
+
         return candidates
 
     # ------------------------------------------------------------------ #
 
-    def collect(self) -> list[tuple[Selection, list[OddsQuote]]]:
+    def collect(self, refresh: bool = False) -> list[tuple[Selection, list[OddsQuote]]]:
         """Fetch (or reuse cached) events, apply the time window, price.
 
         Window rule: an event is kept only if it starts within
         [min_hours_ahead, max_hours_ahead] from now.  Applies to cached
         data too, so changing the window mid-day costs zero credits.
-        Pass --refresh to bypass the cache for one run.
+        Pass --refresh (or refresh=True) to bypass the cache for one run —
+        that costs 1 credit per market per sport (see FeedSettings).
         """
-        if not self.is_configured:
+        if not self.api_keys:
             return []
-
-        force = "--refresh" in sys.argv
+        force = refresh or "--refresh" in sys.argv
         cache = {} if force else self._load_cache()
         ttl = _CFG_TTL_HOURS
         now = time.time()

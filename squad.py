@@ -1,16 +1,13 @@
 """
-squad.py v4 - 4 platform slips x 4 legs. Fixes that matter:
+squad.py v5 - 4 platform slips. Fixes v4's two bugs:
+  1. Sheets are SELF-CONTAINED: legs always rendered from the slip itself
+     (v4 passed an empty list - sheets printed with no picks).
+  2. Lottery-proof grading: combined odds capped at 8.0, combined win
+     probability floored at 10%.  EDGE+ requires EV>=+2% AND prob>=12%.
+     NEUTRAL = half stake.  FUN = 0.25u cap.  4.4%-prob tickets can no
+     longer be labeled EDGE+.
 
-  1. TEAM-ANCHORED PICKS: every leg reads "PICK: <team> to win" - you click
-     the TEAM NAME on the app, never a Home/Away button. Feed home/away
-     flips (KBO doubleheaders) and app ordering can no longer cause a
-     wrong-side bet.
-  2. SESSION-BOUND WINDOW: picks must FINISH before the next session
-     (EAT schedule), computed from now, minus ~2.5h game length.
-  3. EDGE-FIRST selection, honest grading (EDGE+/NEUTRAL/FUN), 4 platforms
-     by default, kickoff-ordered pool, never stands down while games exist.
-
-    python squad.py                # 4 slips @ 0.5u base
+    python squad.py               # 4 slips (SportyBet/Betika/BetPawa/1xBet)
     python squad.py --stake 0.25
     python squad.py --slips 3
 """
@@ -35,6 +32,8 @@ from utils.session import EAT, SESSIONS, clock_line, detect
 
 SUSPECT_RATIO = 1.20
 LEGS_PER_SLIP = 4
+ODDS_CAP = 8.0          # combined odds ceiling - no lottery tickets
+PROB_FLOOR = 0.10       # combined win-probability floor
 MIN_ODDS = ACTION_SETTINGS.min_odds
 MAX_ODDS = ACTION_SETTINGS.max_odds
 MIN_PROB = ACTION_SETTINGS.min_prob
@@ -47,46 +46,38 @@ def _trunc(t: str, w: int) -> str:
 
 
 def _teams(label: str) -> tuple[str, str]:
-    """'A vs B · Sat 11:00 EAT' -> ('A', 'B')."""
     left, _, right = label.partition(" vs ")
     away = right.split(" · ")[0].strip()
     return left.strip(), away
 
 
 def _anchor(market: str, selection: str, label: str) -> str:
-    """Human pick text anchored to a TEAM NAME wherever one exists."""
     home, away = _teams(label)
     m = market.upper()
-    if m.startswith("ML") or m.startswith("MONEYLINE"):
-        return f"{home} to win" if selection == "Home" else f"{away} to win"
-    if m.startswith("1X2"):
+    if m.startswith(("ML", "MONEYLINE", "1X2")):
         if selection == "Home":
             return f"{home} to win"
         if selection == "Away":
             return f"{away} to win"
         return "Draw"
     if m.startswith("SPREAD"):
-        line = market.split()[-1] if len(market.split()) > 1 else "?"
         team = home if selection.endswith("Home") else away
-        return f"{team} spread {line} - verify THIS team's handicap sign on the app"
+        return f"{team} +spread (verify handicap sign on app)"
     if m.startswith("O/U"):
         return f"{market.replace('O/U ', '')} {selection} (match total)"
     if m.startswith("BTTS"):
         return f"Both teams to score: {selection}"
     if m.startswith("DC"):
-        return f"Double chance {selection} (see app)"
+        return f"Double chance {selection}"
     return f"{market} -> {selection}"
 
 
-def _session_bound_hours() -> tuple[float, float]:
-    """Hours until the next session starts; kickoff bound = that - game len."""
+def _session_bound_hours() -> float:
     now = datetime.now(timezone.utc)
     now_min = now.hour * 60 + now.minute
     starts = sorted(s.utc_hour * 60 + s.utc_minute for s in SESSIONS)
-    next_start = next((s for s in starts if s > now_min), starts[0] + 1440)
-    delta_h = (next_start - now_min) / 60.0
-    bound = max(0.5, min(delta_h - GAME_HOURS, 12.0))
-    return bound, delta_h
+    nxt = next((s for s in starts if s > now_min), starts[0] + 1440)
+    return max(0.5, min((nxt - now_min) / 60.0 - GAME_HOURS, 12.0))
 
 
 def _is_suspect(o: BetOpportunity) -> bool:
@@ -143,39 +134,37 @@ def _flag(argv, name, default):
     return default
 
 
-def _grade(ev: float) -> tuple[str, float]:
-    if ev >= 0.02:
+def _grade(ev: float, prob: float) -> tuple[str, float]:
+    if ev >= 0.02 and prob >= 0.12:
         return "EDGE+", 1.00
     if ev >= -0.03:
         return "NEUTRAL", 0.50
     return "FUN", 0.50
 
 
-def _render_sheet(slip, platform, reference, lines, bet_id) -> str:
+def _render_sheet(slip, platform: str, bet_id: str, kmap: dict) -> str:
+    """SELF-CONTAINED sheet: legs always come from the slip itself."""
     w = 78
     bar, sub = "=" * w, "-" * w
     out = [bar,
            f" PICK SHEET {bet_id} | {slip.slip_type} ({slip.n_legs} picks)",
-           f" LOAD ON >>> {platform.upper()}   (reference odds from {reference})",
-           " CLICK THE TEAM NAME - not the Home/Away button - whatever order",
-           " the app lists the teams in.",
+           f" LOAD ON >>> {platform.upper()}",
+           " CLICK THE TEAM NAME - never a Home/Away button.",
            sub]
-    for i, (ln, leg) in enumerate(zip(lines, slip.legs), start=1):
-        out.append(
-            f" {i}. KICKOFF {_kickoff_eat(_kickoff_map().get(leg.match_id, ''))}"
-        )
-        out.append(f"    MATCH  : {ln.match_label.split(' · ')[0]}")
+    for i, leg in enumerate(slip.legs, start=1):
+        out.append(f" {i}. MATCH  : {leg.match_label.split(' · ')[0]}")
+        out.append(f"    KICKOFF: {_kickoff_eat(kmap.get(leg.match_id, ''))}")
         out.append(f"    PICK   : {_anchor(leg.market, leg.selection, leg.match_label)}")
-        out.append(f"    PRICE  : ref @ {ln.odds:.2f}  |  place only if app shows "
-                   f">= {ln.place_min_odds:.2f}")
+        out.append(f"    PRICE  : take {leg.decimal_odds:.2f} | place only if app >= "
+                   f"{round(leg.decimal_odds * 0.97, 2):.2f}")
     out += [sub,
-            f" Combined ref odds : {slip.combined_odds:.2f}",
-            f" TRUE win prob     : {slip.combined_prob * 100:.1f}% "
+            f" Combined odds : {slip.combined_odds:.2f}",
+            f" TRUE win prob : {slip.combined_prob * 100:.1f}% "
             f"(~{slip.combined_prob * 10:.0f} of 10)",
-            f" Slip EV           : {slip.ev_per_unit * 100:+.1f}%  |  "
+            f" Slip EV       : {slip.ev_per_unit * 100:+.1f}%  |  "
             f"Stake {slip.stake_units:.2f}u",
             sub,
-            " After the games:  python settle.py"]
+            " Settle automatically after the games:  python settle.py"]
     return "\n".join(out)
 
 
@@ -188,32 +177,23 @@ def main() -> None:
     tg = TelegramNotifier()
     logger = BetLogger()
 
-    bound, delta_h = _session_bound_hours()
+    bound = _session_bound_hours()
     print("=" * 66)
-    print(f"  SQUAD v4 | {session.emoji} {session.name} | {len(platforms)} slips "
-          f"x {LEGS_PER_SLIP} legs @ {stake}u base")
+    print(f"  SQUAD v5 | {session.emoji} {session.name} | {len(platforms)} slips "
+          f"@ {stake}u base | odds cap {ODDS_CAP:g}")
     print(f"  {clock_line()}")
-    print(f"  SESSION-BOUND: next session in {delta_h:.1f}h -> only games that")
-    print(f"  FINISH before it: kickoff window 0.25-{bound:.1f}h.")
-    print(f"  Targets: {', '.join(p.upper() for p in platforms)}")
     print("=" * 66)
 
-    if "--refresh" not in sys.argv:
-        feed = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=bound)
-        if not feed.is_configured:
-            print("\n  [FAIL] NO API KEYS LOADED. Run:  python doctor.py")
-            tg.send("SQUAD blocked: no API keys. Run python doctor.py") if tg.is_configured else None
-            return
+    feed = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=bound)
+    if not feed.is_configured:
+        print("\n  [FAIL] NO API KEYS LOADED. Run:  python doctor.py")
+        return
 
     candidates = None
     for max_h in (bound, 12.0, 24.0, 48.0):
-        feed = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=max_h)
-        cands = feed.collect()
+        cands = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=max_h).collect()
         if cands:
             candidates = cands
-            if max_h > bound:
-                print(f"  [WARN] nothing finished-by-next-session; widened to "
-                      f"{max_h:.0f}h - some picks may end after the next session.")
             break
         print(f"  .. nothing inside {max_h:.0f}h - widening ...")
     if not candidates:
@@ -250,24 +230,39 @@ def main() -> None:
     kmap = _kickoff_map()
     picks.sort(key=lambda o: kmap.get(o.selection.match_id, "9999-12-31"))
 
-    print(f"\n  Pool: {len(picks)} picks by kickoff (EV shown per leg):")
+    print(f"\n  Pool: {len(picks)} picks by kickoff (EV per leg shown):")
     for i, o in enumerate(picks, start=1):
-        print(f"   {i:>2}. {_trunc(o.selection.match_label, 40):<40} "
-              f"{_anchor(o.selection.market, o.selection.selection, o.selection.match_label)[:34]:<34} "
+        print(f"   {i:>2}. {_trunc(o.selection.match_label, 38):<38} "
+              f"{_anchor(o.selection.market, o.selection.selection, o.selection.match_label)[:30]:<30} "
               f"@ {o.decimal_odds:<5.2f} EV {o.ev_per_unit * 100:+.1f}%")
 
     bankroll = Bankroll()
     placed = []
     for i, platform in enumerate(platforms):
-        legs = picks[i::len(platforms)][:LEGS_PER_SLIP]
+        assigned = picks[i::len(platforms)]
+        legs, used_matches = [], set()
+        odds_prod, prob_prod = 1.0, 1.0
+        for o in assigned:  # edge-ranked order; cap enforces sane tickets
+            if len(legs) >= LEGS_PER_SLIP:
+                break
+            if o.selection.match_id in used_matches:
+                continue
+            new_odds = odds_prod * o.decimal_odds
+            new_prob = prob_prod * o.selection.model_probability
+            if new_odds > ODDS_CAP or new_prob < PROB_FLOOR:
+                continue
+            legs.append(o)
+            used_matches.add(o.selection.match_id)
+            odds_prod, prob_prod = new_odds, new_prob
         if not legs:
+            print(f"  .. {platform}: no legs fit inside the odds cap - skipped.")
             continue
+        legs.sort(key=lambda o: kmap.get(o.selection.match_id, "9999-12-31"))
         proto = Slip(slip_type="SQUAD",
                      legs=[SlipLeg.from_opportunity(l) for l in legs],
                      stake_units=stake)
-        label, mult = _grade(proto.ev_per_unit)
-        eff = stake * mult if label == "NEUTRAL" else (
-            min(stake, 0.25) if label == "FUN" else stake)
+        label, mult = _grade(proto.ev_per_unit, proto.combined_prob)
+        eff = stake * mult if label != "FUN" else min(stake, 0.25)
         slip = dc_replace(proto, stake_units=eff)
         if not bankroll.can_place(slip.stake_units):
             print(f"  !! exposure cap blocked the {platform} slip.")
@@ -275,20 +270,26 @@ def main() -> None:
         bankroll.register_bet(slip.stake_units)
         bet_id = logger.log_slip(slip, session=session.name)
         placed.append((platform, slip, bet_id, label))
-        text = _render_sheet(slip, platform, "best-of-market", [], bet_id)
+        text = _render_sheet(slip, platform, bet_id, kmap)
         print()
-        print(f"  [{label}] stake {eff:.2f}u")
+        print(f"  [{label}] stake {eff:.2f}u ({len(legs)} legs)")
         print(text)
-        print(f"  -> logged as {bet_id} ({platform})")
         if tg.is_configured:
-            tg.send(f"SQUAD {i + 1}/{len(platforms)} -> {platform.upper()} [{label}]\n\n{text}")
+            tg.send(f"SQUAD {i + 1}/{len(platforms)} -> {platform.upper()} "
+                    f"[{label}]\n\n{text}")
 
     if placed and tg.is_configured:
         tot = sum(s.stake_units for _, s, _, _ in placed)
         exp = sum(s.stake_units * s.ev_per_unit for _, s, _, _ in placed)
         tg.send(f"SQUAD: {len(placed)} slips, {tot:.2f}u, expected {exp:+.2f}u. "
-                f"Click TEAM NAMES. Settle with: python settle.py (now auto).")
-    print("\n  Settle (now mostly automatic):  python settle.py")
+                f"Click TEAM NAMES. Auto-settle: python settle.py")
+    n_edge = sum(1 for _, _, _, l in placed if l == "EDGE+")
+    print("\n  VERDICT: "
+          + (f"{n_edge}/{len(placed)} slips EDGE+ (full stakes justified)."
+             if n_edge else
+             "0 EDGE+ slips this session - market priced efficiently; "
+             "NEUTRAL/FUN stakes only."))
+    print("  Settle:  python settle.py")
 
 
 if __name__ == "__main__":

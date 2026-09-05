@@ -1,5 +1,5 @@
 """
-squad.py v6 - 8 platforms x 2 picks = 16 legs per session.
+squad.py v6.1 - 8 platforms x 2 picks = 16 legs per session.
 
     python squad.py               # 8 slips x 2 legs
     python squad.py --stake 0.25
@@ -9,10 +9,11 @@ Each slip: 2 disjoint picks, kickoff-ordered, odds cap 8.0, win-prob floor
 10%. Grading is honest: EDGE+ (EV>=+2% and prob>=12%) full stake,
 NEUTRAL half stake, FUN 0.25u cap.
 
-NEW - MONTE CARLO PORTFOLIO SIMULATION: 100,000 simulated sessions of the
-exact slip set. Reports P(profit > 0), expected P/L, median, and the
-worst-5% outcome. This is the model layer doing real work: measuring the
-RISK SHAPE of what you are about to stake.
+MONTE CARLO PORTFOLIO SIMULATION: 100,000 simulated sessions of the exact
+slip set. Reports P(profit > 0), expected P/L, median, and the worst-5%
+outcome - the risk shape of what you are about to stake.
+
+v6.1 fix: the dataclasses 'replace' import that v6 crashed on is restored.
 """
 
 from __future__ import annotations
@@ -20,12 +21,12 @@ from __future__ import annotations
 import json
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from dataclasses import replace as dc_replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 
-from config.settings import ACTION_SETTINGS
 from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from odds.comparator import BetOpportunity, OddsComparator
@@ -152,9 +153,7 @@ def _grade(ev: float, prob: float) -> tuple[str, float]:
 
 
 def monte_carlo_portfolio(slips: list[Slip], n: int = N_SIMS) -> dict:
-    """Simulate n sessions of this exact slip set. Each slip i wins with
-    prob p_i and pays stake_i*(odds_i-1); else loses stake_i.  Fully
-    vectorised: outcomes matrix (n x slips) of Bernoulli draws."""
+    """Simulate n sessions of this exact slip set, fully vectorised."""
     if not slips:
         return {}
     rng = np.random.default_rng(42)
@@ -173,6 +172,7 @@ def monte_carlo_portfolio(slips: list[Slip], n: int = N_SIMS) -> dict:
 
 
 def _render_sheet(slip, platform: str, bet_id: str, kmap: dict) -> str:
+    """SELF-CONTAINED sheet: legs always come from the slip itself."""
     w = 78
     bar, sub = "=" * w, "-" * w
     out = [bar,
@@ -208,7 +208,7 @@ def main() -> None:
 
     bound = _session_bound_hours()
     print("=" * 70)
-    print(f"  SQUAD v6 | {session.emoji} {session.name} | {n_slips} platforms x "
+    print(f"  SQUAD v6.1 | {session.emoji} {session.name} | {n_slips} platforms x "
           f"{LEGS_PER_SLIP} picks = {n_slips * LEGS_PER_SLIP} legs @ {stake}u base")
     print(f"  {clock_line()}")
     print("=" * 70)

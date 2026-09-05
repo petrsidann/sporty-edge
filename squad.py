@@ -1,11 +1,15 @@
 """
-squad.py v2 - platform-tagged slips x 4 legs, disjoint matches,
-picks ORDERED BY KICKOFF (soonest first). Never claims 'no games' when
-the real problem is missing keys - it says exactly what is wrong.
+squad.py v3 - 4 platform slips x 4 legs, disjoint matches, kickoff-ordered,
+legs chosen by EDGE (EV) FIRST, probability second. Never stands down while
+games exist - but every slip is graded honestly and staked accordingly:
 
-    python squad.py                # 3 slips @ 0.5u each
+    EDGE+    combined EV >= +2%    -> stake as planned
+    NEUTRAL  combined EV >= -3%    -> half stake
+    FUN      below that            -> 0.25u max (expected loss - entertainment)
+
+    python squad.py                # 4 slips (SportyBet/Betika/BetPawa/1xBet)
     python squad.py --stake 0.25
-    python squad.py --slips 4      # one slip per platform
+    python squad.py --slips 3
 """
 
 from __future__ import annotations
@@ -86,9 +90,18 @@ def _flag(argv, name, default):
     return default
 
 
+def _grade(ev: float) -> tuple[str, float, str]:
+    """(label, stake multiplier, advice) from a slip's combined EV."""
+    if ev >= 0.02:
+        return "EDGE+", 1.00, "value confirmed - stake as planned"
+    if ev >= -0.03:
+        return "NEUTRAL", 0.50, "roughly break-even - half stake"
+    return "FUN", 0.50 if False else 0.0, "expected loss - 0.25u max or skip"
+
+
 def main() -> None:
     stake = _flag(sys.argv, "--stake", 0.5)
-    n_slips = int(_flag(sys.argv, "--slips", 3))
+    n_slips = int(_flag(sys.argv, "--slips", 4))
     n_slips = max(1, min(n_slips, len(PLACEABLE_BOOKS)))
     platforms = list(PLACEABLE_BOOKS[:n_slips])
     session = detect()
@@ -96,8 +109,8 @@ def main() -> None:
     logger = BetLogger()
 
     print("=" * 66)
-    print(f"  SQUAD | {session.emoji} {session.name} | {len(platforms)} slips x "
-          f"{LEGS_PER_SLIP} legs @ {stake}u")
+    print(f"  SQUAD v3 | {session.emoji} {session.name} | {len(platforms)} slips x "
+          f"{LEGS_PER_SLIP} legs @ {stake}u base")
     print(f"  {clock_line()}")
     print(f"  Load targets: {', '.join(p.upper() for p in platforms)}")
     print("=" * 66)
@@ -105,12 +118,7 @@ def main() -> None:
     if "--refresh" not in sys.argv:
         feed = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=6.0)
         if not feed.is_configured:
-            print()
-            print("  [FAIL] NO API KEYS LOADED - the feed never ran. That is")
-            print("  why you saw 'no games': the system had no eyes. Games")
-            print("  exist. Run:  python doctor.py  (it pinpoints + auto-fixes;")
-            print("  usual cause: a stray comma in data/credentials.json, or")
-            print("  keys saved in the Documents clone instead of Desktop).")
+            print("\n  [FAIL] NO API KEYS LOADED. Run:  python doctor.py")
             if tg.is_configured:
                 tg.send("SQUAD blocked: no API keys loaded. Run python doctor.py")
             return
@@ -124,9 +132,7 @@ def main() -> None:
             break
         print(f"  .. nothing inside {max_h:.0f}h - widening ...")
     if not candidates:
-        print()
-        print("  [FAIL] feed reachable but zero candidates in 48h.")
-        print("  Run:  python doctor.py  (checks clock skew + key health).")
+        print("\n  [FAIL] feed reachable but zero candidates in 48h. Run doctor.")
         return
 
     comparator = OddsComparator(min_edge=0.0, min_ev_per_unit=0.0)
@@ -139,9 +145,10 @@ def main() -> None:
              and len(o.quotes_by_book) >= 2]
 
     pending = _pending_keys(logger)
+    # EDGE-FIRST selection: best EV legs, then most likely, disjoint matches.
     picks, used = [], set()
     for o in sorted(clean,
-                    key=lambda x: (x.selection.model_probability, x.edge),
+                    key=lambda x: (x.ev_per_unit, x.selection.model_probability),
                     reverse=True):
         if len(picks) >= len(platforms) * LEGS_PER_SLIP:
             break
@@ -159,13 +166,15 @@ def main() -> None:
     kmap = _kickoff_map()
     picks.sort(key=lambda o: kmap.get(o.selection.match_id, "9999-12-31"))
 
-    print(f"\n  Pool: {len(picks)} picks, soonest kickoff first "
-          f"([V]=measured edge):")
+    n_value = sum(1 for o in picks if o.edge >= 0.02)
+    print(f"\n  Pool: {len(picks)} picks by kickoff "
+          f"({n_value} with measured edge [V]):")
     for i, o in enumerate(picks, start=1):
         mark = "[V]" if o.edge >= 0.02 else "   "
-        print(f"   {i:>2}. {mark} {_trunc(o.selection.match_label, 44):<44} "
+        print(f"   {i:>2}. {mark} {_trunc(o.selection.match_label, 42):<42} "
               f"{o.selection.market}->{o.selection.selection:<6} "
-              f"@ {o.decimal_odds:<5.2f} p={o.selection.model_probability:.0%}")
+              f"@ {o.decimal_odds:<5.2f} p={o.selection.model_probability:.0%} "
+              f"EV {o.ev_per_unit * 100:+.1f}%")
 
     bankroll = Bankroll()
     placed = []
@@ -173,33 +182,46 @@ def main() -> None:
         legs = picks[i::len(platforms)][:LEGS_PER_SLIP]
         if not legs:
             continue
-        slip = Slip(slip_type="SQUAD",
-                    legs=[SlipLeg.from_opportunity(l) for l in legs],
-                    stake_units=stake)
+        proto = Slip(slip_type="SQUAD",
+                     legs=[SlipLeg.from_opportunity(l) for l in legs],
+                     stake_units=stake)
+        label, mult, advice = _grade(proto.ev_per_unit)
+        eff_stake = stake * mult if label == "NEUTRAL" else (
+            min(stake, 0.25) if label == "FUN" else stake)
+        slip = dc_replace(proto, stake_units=eff_stake)
+
         if not bankroll.can_place(slip.stake_units):
-            print(f"  !! exposure cap blocked the {platform} slip - "
-                  f"settle pending bets or lower --stake.")
+            print(f"  !! exposure cap blocked the {platform} slip.")
             continue
         bankroll.register_bet(slip.stake_units)
         bet_id = logger.log_slip(slip, session=session.name)
-        placed.append((platform, slip, bet_id))
+        placed.append((platform, slip, bet_id, label))
         sheet = choose_platform(slip)
         text = (dc_replace(sheet, platform=platform).render(bet_id=bet_id)
                 if sheet is not None else slip.render())
         print()
+        print(f"  [{label}] {advice}  (stake adjusted to {eff_stake:.2f}u)")
         print(text)
         print(f"  -> logged as {bet_id} (PENDING, {session.name}, {platform})")
         if tg.is_configured:
-            tg.send(f"SQUAD {i + 1}/{len(platforms)} -> {platform.upper()}\n\n{text}")
+            tg.send(f"SQUAD {i + 1}/{len(platforms)} -> {platform.upper()} "
+                    f"[{label}]\n\n{text}")
 
     if placed and tg.is_configured:
-        tot = sum(s.stake_units for _, s, _ in placed)
-        exp = sum(s.stake_units * s.ev_per_unit for _, s, _ in placed)
-        tg.send(f"SQUAD summary: {len(placed)} slips on {len(platforms)} "
-                f"platforms, {tot:.2f}u staked, expected P/L {exp:+.2f}u. "
-                f"One pick per platform - never duplicated.")
+        tot = sum(s.stake_units for _, s, _, _ in placed)
+        exp = sum(s.stake_units * s.ev_per_unit for _, s, _, _ in placed)
+        grades = ", ".join(f"{p[:2].upper()}:{l}" for p, _, _, l in placed)
+        tg.send(f"SQUAD summary: {len(placed)} slips [{grades}], "
+                f"{tot:.2f}u staked, expected P/L {exp:+.2f}u. "
+                f"EDGE+ = stake as planned | NEUTRAL = half | FUN = tiny/skip.")
 
-    print("\n  RULE: each pick lives on ONE platform only.")
+    n_edge = sum(1 for _, _, _, l in placed if l == "EDGE+")
+    print("\n  VERDICT: "
+          + (f"{n_edge}/{len(placed)} slips are EDGE+ (worth full stakes)."
+             if n_edge else
+             "0 EDGE+ slips right now - FUN/NEUTRAL stakes only, or wait for "
+             "the next session; the market is pricing efficiently.")
+    )
     print("  Settle as games finish:  python settle.py")
 
 

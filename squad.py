@@ -1,15 +1,18 @@
 """
-squad.py v5 - 4 platform slips. Fixes v4's two bugs:
-  1. Sheets are SELF-CONTAINED: legs always rendered from the slip itself
-     (v4 passed an empty list - sheets printed with no picks).
-  2. Lottery-proof grading: combined odds capped at 8.0, combined win
-     probability floored at 10%.  EDGE+ requires EV>=+2% AND prob>=12%.
-     NEUTRAL = half stake.  FUN = 0.25u cap.  4.4%-prob tickets can no
-     longer be labeled EDGE+.
+squad.py v6 - 8 platforms x 2 picks = 16 legs per session.
 
-    python squad.py               # 4 slips (SportyBet/Betika/BetPawa/1xBet)
+    python squad.py               # 8 slips x 2 legs
     python squad.py --stake 0.25
-    python squad.py --slips 3
+    python squad.py --slips 4     # fewer platforms
+
+Each slip: 2 disjoint picks, kickoff-ordered, odds cap 8.0, win-prob floor
+10%. Grading is honest: EDGE+ (EV>=+2% and prob>=12%) full stake,
+NEUTRAL half stake, FUN 0.25u cap.
+
+NEW - MONTE CARLO PORTFOLIO SIMULATION: 100,000 simulated sessions of the
+exact slip set. Reports P(profit > 0), expected P/L, median, and the
+worst-5% outcome. This is the model layer doing real work: measuring the
+RISK SHAPE of what you are about to stake.
 """
 
 from __future__ import annotations
@@ -17,11 +20,12 @@ from __future__ import annotations
 import json
 import sys
 from collections import defaultdict
-from dataclasses import replace as dc_replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from config.settings import ACTION_SETTINGS, PLACEABLE_BOOKS
+import numpy as np
+
+from config.settings import ACTION_SETTINGS
 from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from odds.comparator import BetOpportunity, OddsComparator
@@ -30,14 +34,19 @@ from utils.bankroll import Bankroll
 from utils.logger import BetLogger
 from utils.session import EAT, SESSIONS, clock_line, detect
 
+PLATFORMS: list[str] = [
+    "SportyBet", "Betika", "1xBet", "BetPawa",
+    "MozzartBet", "LuckyPari", "BetJam", "WekaWin",
+]
 SUSPECT_RATIO = 1.20
-LEGS_PER_SLIP = 4
-ODDS_CAP = 8.0          # combined odds ceiling - no lottery tickets
-PROB_FLOOR = 0.10       # combined win-probability floor
-MIN_ODDS = ACTION_SETTINGS.min_odds
-MAX_ODDS = ACTION_SETTINGS.max_odds
-MIN_PROB = ACTION_SETTINGS.min_prob
+LEGS_PER_SLIP = 2
+ODDS_CAP = 8.0
+PROB_FLOOR = 0.10
+MIN_ODDS = 1.30
+MAX_ODDS = 4.00
+MIN_PROB = 0.25
 GAME_HOURS = 2.5
+N_SIMS = 100_000
 _CACHE = Path("data") / "feed_cache.json"
 
 
@@ -142,8 +151,28 @@ def _grade(ev: float, prob: float) -> tuple[str, float]:
     return "FUN", 0.50
 
 
+def monte_carlo_portfolio(slips: list[Slip], n: int = N_SIMS) -> dict:
+    """Simulate n sessions of this exact slip set. Each slip i wins with
+    prob p_i and pays stake_i*(odds_i-1); else loses stake_i.  Fully
+    vectorised: outcomes matrix (n x slips) of Bernoulli draws."""
+    if not slips:
+        return {}
+    rng = np.random.default_rng(42)
+    probs = np.array([s.combined_prob for s in slips])
+    pays = np.array([s.stake_units * (s.combined_odds - 1.0) for s in slips])
+    stakes = np.array([s.stake_units for s in slips])
+    wins = rng.random((n, len(slips))) < probs
+    pnl = (wins * pays).sum(axis=1) - (~wins * stakes).sum(axis=1)
+    return {
+        "p_profit": float((pnl > 0).mean()),
+        "expected": float(pnl.mean()),
+        "median": float(np.median(pnl)),
+        "worst5": float(np.percentile(pnl, 5)),
+        "best5": float(np.percentile(pnl, 95)),
+    }
+
+
 def _render_sheet(slip, platform: str, bet_id: str, kmap: dict) -> str:
-    """SELF-CONTAINED sheet: legs always come from the slip itself."""
     w = 78
     bar, sub = "=" * w, "-" * w
     out = [bar,
@@ -169,28 +198,27 @@ def _render_sheet(slip, platform: str, bet_id: str, kmap: dict) -> str:
 
 
 def main() -> None:
-    stake = _flag(sys.argv, "--stake", 0.5)
-    n_slips = int(_flag(sys.argv, "--slips", 4))
-    n_slips = max(1, min(n_slips, len(PLACEABLE_BOOKS)))
-    platforms = list(PLACEABLE_BOOKS[:n_slips])
+    stake = _flag(sys.argv, "--stake", 0.25)
+    n_slips = int(_flag(sys.argv, "--slips", len(PLATFORMS)))
+    n_slips = max(1, min(n_slips, len(PLATFORMS)))
+    platforms = PLATFORMS[:n_slips]
     session = detect()
     tg = TelegramNotifier()
     logger = BetLogger()
 
     bound = _session_bound_hours()
-    print("=" * 66)
-    print(f"  SQUAD v5 | {session.emoji} {session.name} | {len(platforms)} slips "
-          f"@ {stake}u base | odds cap {ODDS_CAP:g}")
+    print("=" * 70)
+    print(f"  SQUAD v6 | {session.emoji} {session.name} | {n_slips} platforms x "
+          f"{LEGS_PER_SLIP} picks = {n_slips * LEGS_PER_SLIP} legs @ {stake}u base")
     print(f"  {clock_line()}")
-    print("=" * 66)
+    print("=" * 70)
 
-    feed = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=bound)
-    if not feed.is_configured:
+    if not OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=bound).is_configured:
         print("\n  [FAIL] NO API KEYS LOADED. Run:  python doctor.py")
         return
 
     candidates = None
-    for max_h in (bound, 12.0, 24.0, 48.0):
+    for max_h in (max(bound, 6.0), 12.0, 24.0, 48.0):
         cands = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=max_h).collect()
         if cands:
             candidates = cands
@@ -209,12 +237,13 @@ def main() -> None:
              and o.selection.model_probability >= MIN_PROB
              and len(o.quotes_by_book) >= 2]
 
+    need = n_slips * LEGS_PER_SLIP
     pending = _pending_keys(logger)
     picks, used = [], set()
     for o in sorted(clean,
                     key=lambda x: (x.ev_per_unit, x.selection.model_probability),
                     reverse=True):
-        if len(picks) >= len(platforms) * LEGS_PER_SLIP:
+        if len(picks) >= need:
             break
         k = (o.selection.match_id, o.selection.market, o.selection.selection)
         if o.selection.match_id in used or k in pending:
@@ -230,19 +259,22 @@ def main() -> None:
     kmap = _kickoff_map()
     picks.sort(key=lambda o: kmap.get(o.selection.match_id, "9999-12-31"))
 
-    print(f"\n  Pool: {len(picks)} picks by kickoff (EV per leg shown):")
+    print(f"\n  Pool: {len(picks)}/{need} picks by kickoff (EV per leg shown):")
     for i, o in enumerate(picks, start=1):
-        print(f"   {i:>2}. {_trunc(o.selection.match_label, 38):<38} "
-              f"{_anchor(o.selection.market, o.selection.selection, o.selection.match_label)[:30]:<30} "
+        print(f"   {i:>2}. {_trunc(o.selection.match_label, 36):<36} "
+              f"{_anchor(o.selection.market, o.selection.selection, o.selection.match_label)[:28]:<28} "
               f"@ {o.decimal_odds:<5.2f} EV {o.ev_per_unit * 100:+.1f}%")
+    if len(picks) < need:
+        print(f"  (market supplied {len(picks)} clean legs this session - "
+              f"{need - len(picks)} short; slips built with what exists)")
 
     bankroll = Bankroll()
     placed = []
     for i, platform in enumerate(platforms):
-        assigned = picks[i::len(platforms)]
+        assigned = picks[i::n_slips]
         legs, used_matches = [], set()
         odds_prod, prob_prod = 1.0, 1.0
-        for o in assigned:  # edge-ranked order; cap enforces sane tickets
+        for o in assigned:
             if len(legs) >= LEGS_PER_SLIP:
                 break
             if o.selection.match_id in used_matches:
@@ -255,7 +287,7 @@ def main() -> None:
             used_matches.add(o.selection.match_id)
             odds_prod, prob_prod = new_odds, new_prob
         if not legs:
-            print(f"  .. {platform}: no legs fit inside the odds cap - skipped.")
+            print(f"  .. {platform}: no legs fit the caps - skipped.")
             continue
         legs.sort(key=lambda o: kmap.get(o.selection.match_id, "9999-12-31"))
         proto = Slip(slip_type="SQUAD",
@@ -275,21 +307,27 @@ def main() -> None:
         print(f"  [{label}] stake {eff:.2f}u ({len(legs)} legs)")
         print(text)
         if tg.is_configured:
-            tg.send(f"SQUAD {i + 1}/{len(platforms)} -> {platform.upper()} "
-                    f"[{label}]\n\n{text}")
+            tg.send(f"SQUAD {i + 1}/{n_slips} -> {platform.upper()} [{label}]\n\n{text}")
 
-    if placed and tg.is_configured:
-        tot = sum(s.stake_units for _, s, _, _ in placed)
-        exp = sum(s.stake_units * s.ev_per_unit for _, s, _, _ in placed)
-        tg.send(f"SQUAD: {len(placed)} slips, {tot:.2f}u, expected {exp:+.2f}u. "
-                f"Click TEAM NAMES. Auto-settle: python settle.py")
-    n_edge = sum(1 for _, _, _, l in placed if l == "EDGE+")
-    print("\n  VERDICT: "
-          + (f"{n_edge}/{len(placed)} slips EDGE+ (full stakes justified)."
-             if n_edge else
-             "0 EDGE+ slips this session - market priced efficiently; "
-             "NEUTRAL/FUN stakes only."))
-    print("  Settle:  python settle.py")
+    if placed:
+        mc = monte_carlo_portfolio([s for _, s, _, _ in placed])
+        report = (
+            f"MONTE CARLO ({N_SIMS:,} simulated sessions of this exact slip set):\n"
+            f"  P(session ends in profit) : {mc['p_profit'] * 100:.1f}%\n"
+            f"  Expected P/L              : {mc['expected']:+.2f}u\n"
+            f"  Median outcome            : {mc['median']:+.2f}u\n"
+            f"  Worst 5% of sessions      : {mc['worst5']:+.2f}u\n"
+            f"  Best 5% of sessions       : {mc['best5']:+.2f}u"
+        )
+        print("\n" + report)
+        if tg.is_configured:
+            tot = sum(s.stake_units for _, s, _, _ in placed)
+            grades = ", ".join(l for _, _, _, l in placed)
+            tg.send(f"SQUAD: {len(placed)} slips [{grades}], {tot:.2f}u.\n\n{report}")
+        print(f"\n  Grades: "
+              + ", ".join(f"{p}: {l}" for p, _, _, l in placed))
+
+    print("\n  Settle automatically tonight:  python settle.py")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,9 @@ on:
     - cron: "0 2 * * *"               # 05:00 EAT (S6)
   workflow_dispatch: {}
 
+permissions:
+  contents: write          # <- THE FIX: lets the bot commit the ledger
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -27,13 +30,21 @@ jobs:
           ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
         run: python settle_auto.py
 
-      - name: Generate session picks
+      - name: Singles (8 platforms, session-bound)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
         run: python single_shot.py
+
+      - name: Totals lane (O/U specialist)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
+        run: python totals.py
 
       - name: Commit ledger + cache
         run: |

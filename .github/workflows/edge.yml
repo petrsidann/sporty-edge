@@ -2,7 +2,7 @@ name: sporty-edge always-on
 
 on:
   schedule:
-    - cron: "*/30 * * * *"    # every 30 min - the orchestrator decides what to do
+    - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: session-cycle
-  cancel-in-progress: true    # never pile up overlapping runs
+  cancel-in-progress: true
 
 jobs:
   run:
@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Session cycle (settle + top-up picks)
+      - name: Session cycle
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

@@ -1,16 +1,17 @@
 """
-smart_picks.py (STRICT SESSION) - 8 picks, ALL resolving inside the current
-session. Nothing from tomorrow. Nothing from other sessions. Ever.
+smart_picks.py (ROLLING WINDOW) - run at ANY time, get 8 bets that all
+settle within the NEXT 4 HOURS. That is the whole rule.
 
-Lane logic per match (your draw-insight, built in):
-    clear favorite (best side >= 50%)  -> [WINNER] pick the favorite
-    tight / draw-heavy match           -> [TOTALS] pivot to goals:
-                                          highest-probability O/U line
+    python run_now.py
 
-Selection: rank all in-session candidates by win probability, take 8.
-The 30-min orchestrator (session_cycle.py / run_now.py) re-scans all
-session long - as new games get listed, new picks are added until 8.
-Dedupe: one bet per match, never duplicated, never both sides.
+    * Window = [now, now+4h]. Every pick: kickoff inside it AND
+      kickoff + sport duration <= window end. Nothing from tomorrow, ever.
+    * Lanes: clear favorite -> pick the winner. Tight/draw-risky match ->
+      pivot to the goals market (Over/Under) - scoring ignores the coin flip.
+    * 8 picks, 8 platforms, ranked by win probability, stakes graded
+      (HOT 1.0x / WARM 0.5x / STEADY 0.35x / SPICY 0.15x).
+    * Dedupe: one bet per match, never duplicates, never both sides.
+      Run again any time - only NEW picks are added.
 """
 
 from __future__ import annotations
@@ -27,13 +28,14 @@ from odds.comparator import BetOpportunity, OddsComparator
 from slips.generator import Slip, SlipLeg
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
-from utils.session import EAT, clock_line, detect, next_start_eat
+from utils.session import EAT, clock_line, detect
 
 PLATFORMS: list[str] = [
     "SportyBet", "Betika", "1xBet", "BetPawa",
     "MozzartBet", "LuckyPari", "BetJam", "WekaWin",
 ]
 N_PICKS = 8
+WINDOW_HOURS = 4.0
 CACHE = Path("data") / "feed_cache.json"
 DURATIONS = [
     ("mlb", 2.9), ("kbo", 2.9), ("npb", 2.9), ("baseball", 2.9),
@@ -65,8 +67,7 @@ def _anchor(market: str, selection: str, label: str) -> str:
             return f"{away} to win"
         return "Draw"
     if m.startswith("O/U"):
-        line = market.replace("O/U ", "")
-        return f"{selection} {line} goals"
+        return f"{selection} {market.replace('O/U ', '')} goals"
     if m.startswith("DC"):
         return f"Double chance {selection}"
     return f"{market} -> {selection}"
@@ -136,21 +137,19 @@ def main() -> None:
     tg = TelegramNotifier()
     logger = BetLogger()
     now = datetime.now(timezone.utc)
-    next_start = next_start_eat(now)
-    hours_left = (next_start - now).total_seconds() / 3600.0
+    window_end = now + timedelta(hours=WINDOW_HOURS)
 
     print("=" * 70)
-    print(f"  SMART PICKS STRICT | {session.emoji} {session.name} | "
-          f"window {hours_left:.1f}h")
+    print(f"  SMART PICKS | {session.emoji} {session.name} | "
+          f"window: NOW -> +{WINDOW_HOURS:.0f}h")
     print(f"  {clock_line()}")
     print("=" * 70)
 
     cands = OddsApiFeed(min_hours_ahead=0.0,
-                        max_hours_ahead=hours_left,
+                        max_hours_ahead=WINDOW_HOURS,
                         markets="h2h,totals").collect()
     if not cands:
-        msg = (f"{session.emoji} {session.name}: no games starting in this "
-               f"session window yet - the 30-min loop keeps scanning.")
+        msg = ("[FAIL] feed returned zero events - run: python doctor.py")
         print(msg)
         if tg.is_configured:
             tg.send(msg)
@@ -162,7 +161,7 @@ def main() -> None:
 
     h2h: dict[str, dict[str, BetOpportunity]] = defaultdict(dict)
     totals: dict[str, list[BetOpportunity]] = defaultdict(list)
-    in_session: set[str] = set()
+    supply = 0
 
     for sel, quotes in cands:
         opp = comparator.evaluate(sel, quotes)
@@ -170,12 +169,12 @@ def main() -> None:
         if not 0.05 <= prob <= 0.95:
             continue
         ko = _kickoff_dt(kmap.get(opp.selection.match_id, ""))
-        if ko is None:
+        if ko is None or ko < now:
             continue
         dur = sport_duration(opp.selection.league)
-        if (ko + timedelta(hours=dur)) > next_start or ko < now:
-            continue  # NOT this session - excluded entirely
-        in_session.add(opp.selection.match_id)
+        if (ko + timedelta(hours=dur)) > window_end:
+            continue  # must settle within the 4h window
+        supply += 1
         if opp.selection.market.upper() in ("1X2", "ML"):
             h2h[opp.selection.match_id][opp.selection.selection] = opp
         elif opp.selection.market.upper().startswith("O/U"):
@@ -183,10 +182,9 @@ def main() -> None:
 
     candidates: list[tuple[BetOpportunity, str]] = []
     for mid, sides in h2h.items():
-        home, away = sides.get("Home"), sides.get("Away")
         draw = sides.get("Draw")
         best = None
-        for o in (home, away):
+        for o in (sides.get("Home"), sides.get("Away")):
             if o and (best is None or
                       o.selection.model_probability >
                       best.selection.model_probability):
@@ -197,23 +195,21 @@ def main() -> None:
                    draw.selection.model_probability >= 0.30) or
                   best.selection.model_probability < 0.50)
         if cloudy:
-            lines = [o for o in totals.get(mid, [])]
+            lines = totals.get(mid, [])
             if lines:
                 top = max(lines, key=lambda o: o.selection.model_probability)
                 candidates.append((top, "TOTALS"))
         else:
             candidates.append((best, "WINNER"))
     for mid, lines in totals.items():
-        if mid in h2h and lines:
+        if mid not in h2h and lines:
             top = max(lines, key=lambda o: o.selection.model_probability)
             candidates.append((top, "TOTALS"))
 
     seen, fresh = set(), []
     for o, lane in candidates:
         k = (o.selection.match_id, o.selection.market, o.selection.selection)
-        if k in pending_keys or o.selection.match_id in pending_matches:
-            continue
-        if k in seen:
+        if k in pending_keys or o.selection.match_id in pending_matches or k in seen:
             continue
         seen.add(k)
         fresh.append((o, lane))
@@ -221,20 +217,20 @@ def main() -> None:
     fresh.sort(key=lambda t: t[0].selection.model_probability, reverse=True)
     picks = fresh[:N_PICKS]
 
-    print(f"\n  In-session supply: {len(in_session)} matches | "
-          f"{len(fresh)} fresh picks available\n")
+    print(f"\n  Supply: {supply} markets in-window | "
+          f"{len(fresh)} fresh picks | taking {len(picks)}\n")
 
     if not picks:
-        msg = (f"{session.emoji} {session.name}: all in-session games already "
-               f"logged ({len(in_session)} matches). Next session = fresh 8.")
+        msg = (f"{session.emoji} {session.name}: every in-window game is "
+               f"already logged. Run again in the next window for fresh 8.")
         print(msg)
         if tg.is_configured:
             tg.send(msg)
         return
 
     bankroll = Bankroll()
+    slots = PLATFORMS[-len(picks):] if len(picks) < len(PLATFORMS) else PLATFORMS
     placed: list[tuple[str, BetOpportunity, str, str, float]] = []
-    slots = PLATFORMS[-len(picks):] if len(picks) < 8 else PLATFORMS
 
     for i, (opp, lane) in enumerate(picks, start=1):
         platform = slots[i - 1]
@@ -254,11 +250,10 @@ def main() -> None:
         ko = _kickoff_dt(kmap.get(leg.match_id, ""))
         done = ((ko + timedelta(hours=sport_duration(opp.selection.league)))
                 .astimezone(EAT).strftime("%H:%M EAT") if ko else "?")
-        msg = (f"{lane} {session.name} {i}/{len(picks)} -> "
-               f"{platform.upper()} [{label}]\n"
+        msg = (f"{lane} {i}/{len(picks)} -> {platform.upper()} [{label}]\n"
                f"{leg.match_label.split(' · ')[0]}\n"
                f"KICKOFF {_kickoff_eat(kmap.get(leg.match_id, ''))} | "
-               f"settles ~{done} (INSIDE {session.name})\n"
+               f"settles ~{done} (inside your 4h window)\n"
                f"PICK: {_anchor(leg.market, leg.selection, leg.match_label)}\n"
                f"Win prob {prob:.0%} | take {leg.decimal_odds:.2f} | "
                f"place if app >= {floor}\n"
@@ -270,9 +265,10 @@ def main() -> None:
     if placed:
         exp = sum(o.ev_per_unit * e for _, o, _, _, e in placed)
         total = sum(e for _, _, _, _, e in placed)
-        summary = (f"{session.name} progress: {len(placed)} new this scan | "
-                   f"stake {total:.2f}u | expected {exp:+.2f}u\n"
-                   f"Loop rescans every 30 min until 8 are covered.")
+        summary = (f"{len(placed)}/8 picks | stake {total:.2f}u | "
+                   f"expected {exp:+.2f}u | ALL settle by "
+                   f"{(now + timedelta(hours=WINDOW_HOURS)).astimezone(EAT).strftime('%H:%M EAT')}\n"
+                   f"Next window: run again any time after these finish.")
         print(summary)
         if tg.is_configured:
             tg.send(summary)

@@ -243,7 +243,7 @@ def main() -> None:
         print(f"\n  autoscan: {len(pool)}/{N_PICKS} found - rescanning in "
               f"{SCAN_INTERVAL_MIN} min (cheap fast pass)... "
               f"({mins_left:.0f} min of window left)")
-        if tg.is_configured and attempt == 1:
+        if tg.is_configured:
             tg.send(f"{session.name}: {len(pool)}/{N_PICKS} found so far - "
                     f"autoscan running every {SCAN_INTERVAL_MIN} min.")
         time.sleep((RESCAN_MIN_EMPTY if len(pool) == 0 else SCAN_INTERVAL_MIN) * 60)

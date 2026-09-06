@@ -1,12 +1,10 @@
 """
-Betting sessions - 6 per day, exactly 4 hours apart (EAT).
+Betting sessions - 6 per day, 4 hours apart (EAT).
 
     S1 08:00 | S2 12:00 | S3 16:00 | S4 20:00 | S5 00:00 | S6 04:00
 
-Detection uses UTC so every machine agrees.  Every session has a HARD
-boundary: the system may only pick games that FINISH (kickoff + ~2.5h)
-before the next session starts - so matches never bleed across sessions.
-clock_line() shows Local + EAT + UTC + session.
+v3 fix: detect() and next_start_eat() now map blocks to the CORRECT
+session (07:09 is inside S6's block, not S2).
 """
 
 from __future__ import annotations
@@ -15,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 EAT = timezone(timedelta(hours=3))
-GAME_HOURS = 2.5          # average game duration used for boundaries
+GAME_HOURS = 2.5
 
 
 @dataclass(frozen=True)
@@ -24,7 +22,7 @@ class Session:
 
     name: str
     emoji: str
-    eat_hour: int          # session start in EAT
+    eat_hour: int
 
 
 SESSIONS: tuple[Session, ...] = (
@@ -38,55 +36,50 @@ SESSIONS: tuple[Session, ...] = (
 
 
 def detect(now: datetime | None = None) -> Session:
-    """The session currently in progress (4h blocks, wrapping at midnight)."""
+    """The session whose [start, start+4h) block contains now."""
     now = now or datetime.now(timezone.utc)
-    eat = now.astimezone(EAT)
-    block = (eat.hour // 4) % 6
-    return SESSIONS[block]
-
-
-def by_name(name: str) -> Session | None:
-    """Accept 's1'..'s6' or 'S1'..'S6'; None if unknown."""
-    wanted = name.strip().upper()
-    for session in SESSIONS:
-        if session.name == wanted:
-            return session
-    return None
+    h = now.astimezone(EAT).hour
+    for s in SESSIONS:
+        start, end = s.eat_hour, (s.eat_hour + 4) % 24
+        if end > start:
+            if start <= h < end:
+                return s
+        elif h >= start or h < end:
+            return s
+    return SESSIONS[0]
 
 
 def next_start_eat(now: datetime | None = None) -> datetime:
-    """EAT datetime of the next session start after ``now``."""
+    """EAT datetime of the next session start strictly after now."""
     now = now or datetime.now(timezone.utc)
     eat = now.astimezone(EAT)
-    block = (eat.hour // 4) % 6
-    this = SESSIONS[block]
-    start = eat.replace(hour=this.eat_hour % 24, minute=0, second=0,
-                        microsecond=0)
-    if start > eat:
-        return start
-    return start + timedelta(hours=4)
+    best = None
+    for s in SESSIONS:
+        start = eat.replace(hour=s.eat_hour % 24, minute=0, second=0,
+                            microsecond=0)
+        if start <= eat:
+            start += timedelta(hours=24)
+        if best is None or start < best:
+            best = start
+    return best
 
 
 def session_window(now: datetime | None = None) -> float:
-    """Max hours ahead a game may KICK OFF so it finishes before the next
-    session: (hours until next session) - game length.  Floor 0.5h."""
+    """Hours until the next session starts (kickoff bound = this - game)."""
     delta = (next_start_eat(now) - (now or datetime.now(timezone.utc))
              ).total_seconds() / 3600.0
-    return max(0.5, delta - GAME_HOURS)
+    return max(0.25, delta)
 
 
 def clock_line(now: datetime | None = None) -> str:
-    """Dual-clock status: your Local time + EAT + UTC + session + window."""
     now = now or datetime.now(timezone.utc)
     local = now.astimezone()
     eat = now.astimezone(EAT)
     session = detect(now)
     nxt = next_start_eat(now)
-    window = session_window(now)
     return (
         f"Local {local.strftime('%a %H:%M %Z')} | "
         f"EAT {eat.strftime('%H:%M')} | "
         f"session {session.emoji} {session.name} | "
-        f"next {nxt.strftime('%H:%M EAT')} | "
-        f"games must start within {window:.1f}h"
+        f"next {nxt.strftime('%H:%M EAT')}"
     )

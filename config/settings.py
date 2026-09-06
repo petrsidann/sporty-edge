@@ -247,6 +247,8 @@ class FeedSettings:
         "baseball_npb",                # Nippon Professional Baseball
         "baseball_kbo",                # Korean Baseball Organization
         "soccer_japan_j_league",
+        "soccer_japan_j2_league",
+        "soccer_korea_kleague2",
         "soccer_korea_kleague1",
         "soccer_australia_aleague",
         # --- Other ---

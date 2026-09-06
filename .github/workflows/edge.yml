@@ -1,17 +1,16 @@
-name: sporty-edge sessions
+name: sporty-edge always-on
 
 on:
   schedule:
-    # Two chances per session: pre-start + mid-window. Dedupe guard makes
-    # double runs safe - the second run only logs picks the first missed.
-    - cron: "40 5,9,13,17,21 * * *"    # 08:40 / 12:40 / 16:40 / 20:40 / 00:40 EAT
-    - cron: "40 1,9,13,17,21 * * *"    # 04:40 / 12:40 / ... EAT (S6 + repeats)
-    - cron: "25 7,11,15,19,23 * * *"   # 10:25 / 14:25 / 18:25 / 22:25 / 02:25 EAT
-    - cron: "25 3 * * *"               # 06:25 EAT (S6 second chance)
+    - cron: "*/30 * * * *"    # every 30 min - the orchestrator decides what to do
   workflow_dispatch: {}
 
 permissions:
   contents: write
+
+concurrency:
+  group: session-cycle
+  cancel-in-progress: true    # never pile up overlapping runs
 
 jobs:
   run:
@@ -26,34 +25,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Auto-settle previous session
+      - name: Session cycle (settle + top-up picks)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
-        run: python settle_auto.py
+        run: python session_cycle.py
 
-      - name: Singles (8 platforms, session-bound)
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-          ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
-        run: python single_shot.py
-
-      - name: Totals lane
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-          ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
-        run: python totals.py
-
-      - name: Commit ledger + cache
+      - name: Commit ledger + cache + state
         run: |
           git config user.name "edge-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/bets.jsonl data/feed_cache.json || true
-          git diff --cached --quiet || git commit -m "Session cycle [skip ci]"
+          git add data/ || true
+          git diff --cached --quiet || git commit -m "cycle [skip ci]"
           git push

@@ -1,19 +1,13 @@
 """
-squad.py v6.1 - 8 platforms x 2 picks = 16 legs per session.
+squad.py v7 - 8 platforms x 2 picks, HARD session boundaries.
+
+Every pick must FINISH (kickoff + 2.5h) before the next 4h session starts.
+Edge-first selection, odds cap 8.0, win-prob floor 10%, honest grading,
+Monte Carlo portfolio report.  Pool shows sport + kickoff per leg.
 
     python squad.py               # 8 slips x 2 legs
     python squad.py --stake 0.25
-    python squad.py --slips 4     # fewer platforms
-
-Each slip: 2 disjoint picks, kickoff-ordered, odds cap 8.0, win-prob floor
-10%. Grading is honest: EDGE+ (EV>=+2% and prob>=12%) full stake,
-NEUTRAL half stake, FUN 0.25u cap.
-
-MONTE CARLO PORTFOLIO SIMULATION: 100,000 simulated sessions of the exact
-slip set. Reports P(profit > 0), expected P/L, median, and the worst-5%
-outcome - the risk shape of what you are about to stake.
-
-v6.1 fix: the dataclasses 'replace' import that v6 crashed on is restored.
+    python squad.py --slips 4
 """
 
 from __future__ import annotations
@@ -33,7 +27,7 @@ from odds.comparator import BetOpportunity, OddsComparator
 from slips.generator import Slip, SlipLeg
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
-from utils.session import EAT, SESSIONS, clock_line, detect
+from utils.session import EAT, clock_line, detect, session_window
 
 PLATFORMS: list[str] = [
     "SportyBet", "Betika", "1xBet", "BetPawa",
@@ -46,7 +40,6 @@ PROB_FLOOR = 0.10
 MIN_ODDS = 1.30
 MAX_ODDS = 4.00
 MIN_PROB = 0.25
-GAME_HOURS = 2.5
 N_SIMS = 100_000
 _CACHE = Path("data") / "feed_cache.json"
 
@@ -80,14 +73,6 @@ def _anchor(market: str, selection: str, label: str) -> str:
     if m.startswith("DC"):
         return f"Double chance {selection}"
     return f"{market} -> {selection}"
-
-
-def _session_bound_hours() -> float:
-    now = datetime.now(timezone.utc)
-    now_min = now.hour * 60 + now.minute
-    starts = sorted(s.utc_hour * 60 + s.utc_minute for s in SESSIONS)
-    nxt = next((s for s in starts if s > now_min), starts[0] + 1440)
-    return max(0.5, min((nxt - now_min) / 60.0 - GAME_HOURS, 12.0))
 
 
 def _is_suspect(o: BetOpportunity) -> bool:
@@ -134,6 +119,10 @@ def _kickoff_eat(ts: str) -> str:
         return "?"
 
 
+def _sport_of(label: str) -> str:
+    return label.split(" · ")[0].split(" vs ")[0].strip()[:18]
+
+
 def _flag(argv, name, default):
     if name in argv:
         i = argv.index(name)
@@ -153,7 +142,6 @@ def _grade(ev: float, prob: float) -> tuple[str, float]:
 
 
 def monte_carlo_portfolio(slips: list[Slip], n: int = N_SIMS) -> dict:
-    """Simulate n sessions of this exact slip set, fully vectorised."""
     if not slips:
         return {}
     rng = np.random.default_rng(42)
@@ -172,7 +160,6 @@ def monte_carlo_portfolio(slips: list[Slip], n: int = N_SIMS) -> dict:
 
 
 def _render_sheet(slip, platform: str, bet_id: str, kmap: dict) -> str:
-    """SELF-CONTAINED sheet: legs always come from the slip itself."""
     w = 78
     bar, sub = "=" * w, "-" * w
     out = [bar,
@@ -206,22 +193,25 @@ def main() -> None:
     tg = TelegramNotifier()
     logger = BetLogger()
 
-    bound = _session_bound_hours()
+    bound = session_window()
     print("=" * 70)
-    print(f"  SQUAD v6.1 | {session.emoji} {session.name} | {n_slips} platforms x "
-          f"{LEGS_PER_SLIP} picks = {n_slips * LEGS_PER_SLIP} legs @ {stake}u base")
+    print(f"  SQUAD v7 | {session.emoji} {session.name} | {n_slips} platforms x "
+          f"{LEGS_PER_SLIP} picks @ {stake}u base")
     print(f"  {clock_line()}")
     print("=" * 70)
 
-    if not OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=bound).is_configured:
+    if not OddsApiFeed(min_hours_ahead=0.0, max_hours_ahead=bound).is_configured:
         print("\n  [FAIL] NO API KEYS LOADED. Run:  python doctor.py")
         return
 
     candidates = None
-    for max_h in (max(bound, 6.0), 12.0, 24.0, 48.0):
-        cands = OddsApiFeed(min_hours_ahead=0.25, max_hours_ahead=max_h).collect()
+    for max_h in (bound, 12.0, 24.0, 48.0):
+        cands = OddsApiFeed(min_hours_ahead=0.0, max_hours_ahead=max_h).collect()
         if cands:
             candidates = cands
+            if max_h > bound:
+                print(f"  [WARN] session window empty - widened to {max_h:.0f}h; "
+                      f"some picks may finish after the next session.")
             break
         print(f"  .. nothing inside {max_h:.0f}h - widening ...")
     if not candidates:
@@ -259,14 +249,11 @@ def main() -> None:
     kmap = _kickoff_map()
     picks.sort(key=lambda o: kmap.get(o.selection.match_id, "9999-12-31"))
 
-    print(f"\n  Pool: {len(picks)}/{need} picks by kickoff (EV per leg shown):")
+    print(f"\n  Pool: {len(picks)}/{need} picks (kickoff-ordered):")
     for i, o in enumerate(picks, start=1):
-        print(f"   {i:>2}. {_trunc(o.selection.match_label, 36):<36} "
-              f"{_anchor(o.selection.market, o.selection.selection, o.selection.match_label)[:28]:<28} "
+        print(f"   {i:>2}. {_trunc(o.selection.match_label, 34):<34} "
+              f"{_anchor(o.selection.market, o.selection.selection, o.selection.match_label)[:26]:<26} "
               f"@ {o.decimal_odds:<5.2f} EV {o.ev_per_unit * 100:+.1f}%")
-    if len(picks) < need:
-        print(f"  (market supplied {len(picks)} clean legs this session - "
-              f"{need - len(picks)} short; slips built with what exists)")
 
     bankroll = Bankroll()
     placed = []
@@ -312,22 +299,16 @@ def main() -> None:
     if placed:
         mc = monte_carlo_portfolio([s for _, s, _, _ in placed])
         report = (
-            f"MONTE CARLO ({N_SIMS:,} simulated sessions of this exact slip set):\n"
-            f"  P(session ends in profit) : {mc['p_profit'] * 100:.1f}%\n"
-            f"  Expected P/L              : {mc['expected']:+.2f}u\n"
-            f"  Median outcome            : {mc['median']:+.2f}u\n"
-            f"  Worst 5% of sessions      : {mc['worst5']:+.2f}u\n"
-            f"  Best 5% of sessions       : {mc['best5']:+.2f}u"
+            f"MONTE CARLO ({N_SIMS:,} sims):\n"
+            f"  P(profit) {mc['p_profit'] * 100:.1f}% | expected {mc['expected']:+.2f}u | "
+            f"median {mc['median']:+.2f}u | worst5 {mc['worst5']:+.2f}u | "
+            f"best5 {mc['best5']:+.2f}u"
         )
         print("\n" + report)
         if tg.is_configured:
-            tot = sum(s.stake_units for _, s, _, _ in placed)
-            grades = ", ".join(l for _, _, _, l in placed)
-            tg.send(f"SQUAD: {len(placed)} slips [{grades}], {tot:.2f}u.\n\n{report}")
-        print(f"\n  Grades: "
-              + ", ".join(f"{p}: {l}" for p, _, _, l in placed))
-
-    print("\n  Settle automatically tonight:  python settle.py")
+            tg.send(f"SQUAD {session.name}: {len(placed)} slips, "
+                    f"{sum(s.stake_units for _, s, _, _ in placed):.2f}u.\n{report}")
+    print("\n  Settle:  python settle.py")
 
 
 if __name__ == "__main__":

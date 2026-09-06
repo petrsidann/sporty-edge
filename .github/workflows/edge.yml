@@ -2,8 +2,7 @@ name: sporty-edge sessions
 
 on:
   schedule:
-    - cron: "0 3,10,15 * * *"     # 06:00 / 13:00 / 18:00 EAT
-    - cron: "0 20 * * *"          # 23:00 EAT
+    - cron: "0 5,9,13,17,21,1 * * *"   # 08/12/16/20/00/04 EAT
   workflow_dispatch: {}
 
 jobs:
@@ -19,18 +18,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run SQUAD session (8 platforms x 2 picks)
+      - name: Run SINGLE SHOT (session-bound)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
-        run: python squad.py
+        run: python single_shot.py
 
       - name: Commit ledger + cache
         run: |
           git config user.name "edge-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/bets.jsonl data/feed_cache.json || true
-          git diff --cached --quiet || git commit -m "Squad ledger [skip ci]"
+          git diff --cached --quiet || git commit -m "Session ledger [skip ci]"
           git push

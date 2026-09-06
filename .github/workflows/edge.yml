@@ -25,7 +25,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Session cycle
+      - name: Telegram smoke test (RED = fix the TELEGRAM_BOT_TOKEN secret)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c "from notify.telegram import TelegramNotifier; import sys; sys.exit(0 if TelegramNotifier().send('✅ sporty-edge cycle starting') else 1)"
+
+      - name: Session cycle (settle + smart picks)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

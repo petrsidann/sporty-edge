@@ -1,7 +1,7 @@
 """
 session_cycle.py (FINAL) - the 30-min always-on orchestrator.
-Idempotent: settles finished games, tops up singles/totals per session,
-announces coverage once, marks exhausted lanes once. Safe to run forever.
+Settle finished games -> top up smart picks to 8/session -> commit.
+Exhausted lanes announce ONCE. Idempotent and dedupe-safe.
 """
 
 from __future__ import annotations
@@ -16,13 +16,13 @@ from utils.logger import BetLogger
 from utils.session import clock_line, detect
 
 STATE_PATH = Path("data") / "session_state.json"
-TARGET_SINGLES = 8
-TARGET_TOTALS = 8
+TARGET = 8
 
 
 def _pull():
     try:
-        subprocess.run(["git", "pull", "--rebase", "-X", "theirs", "origin", "main"],
+        subprocess.run(["git", "pull", "--rebase", "-X", "theirs",
+                        "origin", "main"],
                        capture_output=True, text=True, timeout=90)
     except Exception:
         pass
@@ -35,18 +35,13 @@ def _run(script):
         print(f"[cycle] {script} failed: {exc!r}")
 
 
-def _count_today(logger, session_name, ou_only=False):
+def _count_today(logger, session_name):
     today = date.today().isoformat()
-    n = 0
-    for rec in logger._read_all():
-        if rec.get("session") != session_name: continue
-        if not str(rec.get("logged_at", "")).startswith(today): continue
-        if ou_only:
-            if any(str(l.get("market", "")).upper().startswith("O/U")
-                   for l in rec.get("legs", [])): n += 1
-        else:
-            n += 1
-    return n
+    return sum(
+        1 for rec in logger._read_all()
+        if rec.get("session") == session_name
+        and str(rec.get("logged_at", "")).startswith(today)
+    )
 
 
 def _load_state():
@@ -57,8 +52,7 @@ def _load_state():
     except (OSError, json.JSONDecodeError):
         pass
     return {"date": date.today().isoformat(), "session": "",
-            "singles_announced": False, "singles_exhausted": False,
-            "totals_exhausted": False}
+            "announced": False, "exhausted": False}
 
 
 def _save_state(s):
@@ -73,44 +67,34 @@ def main():
     state = _load_state()
     if state.get("session") != session.name:
         state = {"date": date.today().isoformat(), "session": session.name,
-                 "singles_announced": False, "singles_exhausted": False,
-                 "totals_exhausted": False}
+                 "announced": False, "exhausted": False}
         _save_state(state)
 
     print(f"[cycle] {clock_line()}")
-
     _run("settle_auto.py")
 
-    singles = _count_today(lg, session.name)
-    if singles < TARGET_SINGLES and not state.get("singles_exhausted"):
-        before = singles
-        _run("single_shot.py")
-        singles = _count_today(lg, session.name)
-        if singles == before:
-            state["singles_exhausted"] = True
+    n = _count_today(lg, session.name)
+    if n < TARGET and not state.get("exhausted"):
+        before = n
+        _run("smart_picks.py")
+        n = _count_today(lg, session.name)
+        if n == before and before > 0:
+            state["exhausted"] = True
             from notify.telegram import TelegramNotifier
-            tgn = TelegramNotifier()
-            if tgn.is_configured and before > 0:
-                tgn.send(f"{session.emoji} {session.name}: singles complete at {before}/8 - world supply reached.")
+            t = TelegramNotifier()
+            if t.is_configured:
+                t.send(f"{session.emoji} {session.name}: market exhausted at "
+                       f"{before}/8 - next session reopens the board.")
             _save_state(state)
-    if singles >= TARGET_SINGLES and not state.get("singles_announced"):
+    if n >= TARGET and not state.get("announced"):
         from notify.telegram import TelegramNotifier
-        tgn = TelegramNotifier()
-        if tgn.is_configured:
-            tgn.send(f"✅ {session.emoji} {session.name} fully covered - {singles} picks live. Settlements arrive automatically.")
-        state["singles_announced"] = True
+        t = TelegramNotifier()
+        if t.is_configured:
+            t.send(f"✅ {session.emoji} {session.name} fully covered - "
+                   f"{n} picks live across the platforms.")
+        state["announced"] = True
         _save_state(state)
-
-    totals_n = _count_today(lg, session.name, ou_only=True)
-    if totals_n < TARGET_TOTALS and not state.get("totals_exhausted"):
-        before = totals_n
-        _run("totals.py")
-        totals_n = _count_today(lg, session.name, ou_only=True)
-        if totals_n == before:
-            state["totals_exhausted"] = True
-            _save_state(state)
-
-    print(f"[cycle] done | singles {singles}/8 | totals {totals_n}/8")
+    print(f"[cycle] done | picks {n}/{TARGET}")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,8 @@ name: sporty-edge sessions
 
 on:
   schedule:
-    - cron: "0 5,9,13,17,21,1 * * *"   # 08/12/16/20/00/04 EAT
+    - cron: "0 6,10,14,18,22 * * *"   # 09/13/17/21/01 EAT
+    - cron: "0 2 * * *"               # 05:00 EAT (S6)
   workflow_dispatch: {}
 
 jobs:
@@ -18,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Auto-settle the previous session
+      - name: Auto-settle previous session
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -26,7 +27,7 @@ jobs:
           ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
         run: python settle_auto.py
 
-      - name: Generate this session's picks
+      - name: Generate session picks
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

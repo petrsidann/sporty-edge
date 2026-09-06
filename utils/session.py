@@ -1,10 +1,12 @@
 """
-Betting sessions - 6 per day, 4 hours apart (EAT).
+Betting sessions - 6 per day, 4 hours apart, RETIMED to global game supply.
 
-    S1 08:00 | S2 12:00 | S3 16:00 | S4 20:00 | S5 00:00 | S6 04:00
+    S1 09:00 | S2 13:00 | S3 17:00 | S4 21:00 | S5 01:00 | S6 05:00  (EAT)
 
-v3 fix: detect() and next_start_eat() now map blocks to the CORRECT
-session (07:09 is inside S6's block, not S2).
+The grid sits on top of when games actually START worldwide:
+    S1/S2  Asia (KBO, NPB, J-League)   S3/S4  Europe prime
+    S5     MLB night + Brazil          S6     MLB West Coast + NPB morning
+Detection uses UTC so every machine agrees.
 """
 
 from __future__ import annotations
@@ -26,12 +28,12 @@ class Session:
 
 
 SESSIONS: tuple[Session, ...] = (
-    Session("S1", "\U0001F305", 8),
-    Session("S2", "\u2600", 12),
-    Session("S3", "\U0001F305", 16),
-    Session("S4", "\U0001F31F", 20),
-    Session("S5", "\U0001F319", 0),
-    Session("S6", "\u26A1", 4),
+    Session("S1", "\U0001F305", 9),
+    Session("S2", "\u2600", 13),
+    Session("S3", "\U0001F305", 17),
+    Session("S4", "\U0001F31F", 21),
+    Session("S5", "\U0001F319", 1),
+    Session("S6", "\u26A1", 5),
 )
 
 
@@ -65,7 +67,7 @@ def next_start_eat(now: datetime | None = None) -> datetime:
 
 
 def session_window(now: datetime | None = None) -> float:
-    """Hours until the next session starts (kickoff bound = this - game)."""
+    """Hours until the next session starts."""
     delta = (next_start_eat(now) - (now or datetime.now(timezone.utc))
              ).total_seconds() / 3600.0
     return max(0.25, delta)

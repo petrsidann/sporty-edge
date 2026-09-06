@@ -2,8 +2,12 @@ name: sporty-edge sessions
 
 on:
   schedule:
-    - cron: "10 6,10,14,18,22 * * *"   # 09:10 / 13:10 / 17:10 / 21:10 / 01:10 EAT
-    - cron: "10 2 * * *"               # 05:10 EAT (S6)
+    # Two chances per session: pre-start + mid-window. Dedupe guard makes
+    # double runs safe - the second run only logs picks the first missed.
+    - cron: "40 5,9,13,17,21 * * *"    # 08:40 / 12:40 / 16:40 / 20:40 / 00:40 EAT
+    - cron: "40 1,9,13,17,21 * * *"    # 04:40 / 12:40 / ... EAT (S6 + repeats)
+    - cron: "25 7,11,15,19,23 * * *"   # 10:25 / 14:25 / 18:25 / 22:25 / 02:25 EAT
+    - cron: "25 3 * * *"               # 06:25 EAT (S6 second chance)
   workflow_dispatch: {}
 
 permissions:
@@ -38,7 +42,7 @@ jobs:
           ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
         run: python single_shot.py
 
-      - name: Totals lane (O/U specialist)
+      - name: Totals lane
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

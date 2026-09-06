@@ -42,6 +42,7 @@ MIN_ODDS = 1.10
 MAX_ODDS = 2.30          # was 1.80 - the filter-wall culprit
 SANITY_PROB = 0.40       # was 0.45 - the second culprit
 SCAN_INTERVAL_MIN = 30
+RESCAN_MIN_EMPTY = 10   # when 0 found, rescan faster
 _CACHE = Path("data") / "feed_cache.json"
 
 # sports most likely to supply thin windows - refetched during autoscan
@@ -245,7 +246,7 @@ def main() -> None:
         if tg.is_configured and attempt == 1:
             tg.send(f"{session.name}: {len(pool)}/{N_PICKS} found so far - "
                     f"autoscan running every {SCAN_INTERVAL_MIN} min.")
-        time.sleep(SCAN_INTERVAL_MIN * 60)
+        time.sleep((RESCAN_MIN_EMPTY if len(pool) == 0 else SCAN_INTERVAL_MIN) * 60)
         attempt += 1
         more, _ = _scan(next_start, comparator, pending, fast_only=True)
         # merge: new qualifying picks only

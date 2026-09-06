@@ -2,12 +2,12 @@ name: sporty-edge sessions
 
 on:
   schedule:
-    - cron: "0 6,10,14,18,22 * * *"   # 09/13/17/21/01 EAT
-    - cron: "0 2 * * *"               # 05:00 EAT (S6)
+    - cron: "10 6,10,14,18,22 * * *"   # 09:10 / 13:10 / 17:10 / 21:10 / 01:10 EAT
+    - cron: "10 2 * * *"               # 05:10 EAT (S6)
   workflow_dispatch: {}
 
 permissions:
-  contents: write          # <- THE FIX: lets the bot commit the ledger
+  contents: write
 
 jobs:
   run:

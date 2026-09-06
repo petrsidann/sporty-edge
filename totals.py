@@ -147,6 +147,8 @@ def main() -> None:
     base_stake = _flag(sys.argv, "--stake", 0.5)
     session = detect()
     tg = TelegramNotifier()
+    if tg.is_configured:
+        tg.send(f"\u23f0 {session.emoji} {session.name} run started - scanning the board...")
     logger = BetLogger()
 
     now = datetime.now(timezone.utc)

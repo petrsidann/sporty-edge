@@ -209,6 +209,8 @@ def main() -> None:
     platforms = PLATFORMS
     session = detect()
     tg = TelegramNotifier()
+    if tg.is_configured:
+        tg.send(f"\u23f0 {session.emoji} {session.name} run started - scanning the board...")
     logger = BetLogger()
 
     now = datetime.now(timezone.utc)

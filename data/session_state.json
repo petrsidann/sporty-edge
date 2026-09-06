@@ -3,5 +3,6 @@
   "session": "S2",
   "singles_announced": true,
   "singles_exhausted": false,
-  "totals_exhausted": true
+  "totals_exhausted": true,
+  "announced": true
 }

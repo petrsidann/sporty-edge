@@ -1,22 +1,17 @@
 """
-single_shot.py v3 - GUARANTEED 8 picks per session, quality-graded stakes.
+single_shot.py v4 - 8 picks per session, ALL inside the session timeline.
 
-Non-negotiable: 8 bets, 8 platforms, every session.  The odds calculation
-sets the STAKE, never the absence:
+Rules baked in:
+  * A pick qualifies only if: kickoff >= now AND kickoff + sport_duration
+    <= next session start.  Per-sport durations (soccer ~2h, fights ~1.5h,
+    MLB ~2.9h...) - so every pick is PLAYED AND SETTLED inside its session.
+  * NO cross-session picks.  If the world supplies fewer than 8 in-window
+    games, you get the max + a shortfall report naming the gaps.
+  * Quality sets the stake: EDGE+ 1.0x | NEUTRAL 0.5x | FUN 0.25x |
+    FILLER 0.1x.  8 bets, 8 platforms, one pick per match, team-anchored.
 
-    EDGE+   prob >= 70% and EV >= +2%     -> 1.00x stake
-    NEUTRAL prob >= 60% and EV >= -2%     -> 0.50x stake
-    FUN     prob >= 50%                   -> 0.25x stake
-    FILLER  best remaining (sanity >= 45%) -> 0.10x stake
-
-Session-bound first: picks must finish before the next 4h session.  Only
-if the window supplies fewer than 8 does it widen (+4h steps), and every
-widened pick is labeled CROSS (finishes in the next window) - you see it,
-you decide.  One pick per match, team-anchored, no spread ambiguity.
-
-    python single_shot.py                     # 75% dial for tier-1
-    python single_shot.py --min-prob 0.80
-    python single_shot.py --stake 0.5
+Run at session start (08:00 / 12:00 / 16:00 / 20:00 / 00:00 / 04:00 EAT)
+for the full window.
 """
 
 from __future__ import annotations
@@ -33,7 +28,7 @@ from odds.comparator import BetOpportunity, OddsComparator
 from slips.generator import Slip, SlipLeg
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
-from utils.session import EAT, clock_line, detect, session_window
+from utils.session import EAT, clock_line, detect, next_start_eat
 
 PLATFORMS: list[str] = [
     "SportyBet", "Betika", "1xBet", "BetPawa",
@@ -42,9 +37,29 @@ PLATFORMS: list[str] = [
 SUSPECT_RATIO = 1.20
 N_PICKS = 8
 MIN_ODDS = 1.10
-MAX_ODDS = 1.80          # singles product: short prices only
-SANITY_PROB = 0.45       # never emit anything below this
+MAX_ODDS = 1.80
+SANITY_PROB = 0.45
 _CACHE = Path("data") / "feed_cache.json"
+
+# expected game duration (hours) by sport - used to guarantee every pick
+# FINISHES before the next session starts
+DURATIONS: list[tuple[str, float]] = [
+    ("mlb", 2.9), ("kbo", 2.9), ("npb", 2.9), ("baseball", 2.9),
+    ("nfl", 3.2), ("ncaaf", 3.3), ("american", 3.2),
+    ("nba", 2.4), ("basketball", 2.4),
+    ("nhl", 2.6), ("hockey", 2.6),
+    ("mma", 1.5), ("ufc", 1.5), ("fight", 1.5),
+    ("tennis", 2.2),
+]
+
+
+def sport_duration(league: str) -> float:
+    """Expected finish duration for this league/sport, in hours."""
+    s = (league or "").lower()
+    for key, hours in DURATIONS:
+        if key in s:
+            return hours
+    return 2.05  # soccer default
 
 
 def _teams(label: str) -> tuple[str, str]:
@@ -103,6 +118,14 @@ def _kickoff_eat(ts: str) -> str:
         return "?"
 
 
+def _kickoff_dt(ts: str) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
 def _flag(argv, name, default):
     if name in argv:
         i = argv.index(name)
@@ -113,9 +136,8 @@ def _flag(argv, name, default):
     return default
 
 
-def _tier(prob: float, ev: float, tier1_prob: float) -> tuple[str, float]:
-    """(label, stake multiplier) from the odds calculation."""
-    if prob >= tier1_prob and ev >= 0.02:
+def _tier(prob: float, ev: float) -> tuple[str, float]:
+    if prob >= 0.70 and ev >= 0.02:
         return "EDGE+", 1.00
     if prob >= 0.60 and ev >= -0.02:
         return "NEUTRAL", 0.50
@@ -124,13 +146,46 @@ def _tier(prob: float, ev: float, tier1_prob: float) -> tuple[str, float]:
     return "FILLER", 0.10
 
 
-def _clean_pool(cands, comparator, pending) -> list[BetOpportunity]:
-    """Best non-spread pick per match, sanity-filtered."""
+def main() -> None:
+    base_stake = _flag(sys.argv, "--stake", 0.5)
+    platforms = PLATFORMS
+    session = detect()
+    tg = TelegramNotifier()
+    logger = BetLogger()
+
+    now = datetime.now(timezone.utc)
+    next_start = next_start_eat(now)
+    print("=" * 70)
+    print(f"  SINGLE SHOT v4 | {session.emoji} {session.name} | "
+          f"{N_PICKS} in-session picks, 8 platforms")
+    print(f"  {clock_line()}")
+    print("=" * 70)
+
+    if not OddsApiFeed(min_hours_ahead=0.0,
+                       max_hours_ahead=(next_start - now).total_seconds() / 3600.0
+                       ).is_configured:
+        print("\n  [FAIL] NO API KEYS LOADED. Run:  python doctor.py")
+        return
+
+    # fetch the whole remaining session block, then filter per-sport
+    cands = OddsApiFeed(
+        min_hours_ahead=0.0,
+        max_hours_ahead=(next_start - now).total_seconds() / 3600.0,
+    ).collect()
+
+    comparator = OddsComparator(min_edge=0.0, min_ev_per_unit=0.0)
+    pending = _pending_keys(logger)
+    kmap = _kickoff_map()
+
     opps = [comparator.evaluate(s, q) for s, q in cands]
     opps = [o for o in opps if not _is_suspect(o)]
+
+    # one best pick per match
     by_match: dict[str, list[BetOpportunity]] = defaultdict(list)
     for o in opps:
         by_match[o.selection.match_id].append(o)
+
+    per_sport_supply: dict[str, int] = defaultdict(int)
     pool: list[BetOpportunity] = []
     for group in by_match.values():
         best = max(group, key=lambda o: o.selection.model_probability)
@@ -146,60 +201,46 @@ def _clean_pool(cands, comparator, pending) -> list[BetOpportunity]:
              best.selection.selection)
         if k in pending:
             continue
+        # STRICT in-session check: kickoff + sport duration <= next session
+        ko = _kickoff_dt(kmap.get(best.selection.match_id, ""))
+        if ko is None:
+            continue
+        dur = sport_duration(best.selection.league)
+        if (ko + __import__("datetime").timedelta(hours=dur)) > next_start:
+            continue
         pool.append(best)
-    return pool
-
-
-def main() -> None:
-    tier1_prob = _flag(sys.argv, "--min-prob", 0.75)
-    base_stake = _flag(sys.argv, "--stake", 0.5)
-    platforms = PLATFORMS
-    session = detect()
-    tg = TelegramNotifier()
-    logger = BetLogger()
-
-    bound = session_window()
-    print("=" * 70)
-    print(f"  SINGLE SHOT v3 | {session.emoji} {session.name} | "
-          f"GUARANTEED {N_PICKS} picks (stakes graded by quality)")
-    print(f"  {clock_line()}")
-    print("=" * 70)
-
-    if not OddsApiFeed(min_hours_ahead=0.0, max_hours_ahead=bound).is_configured:
-        print("\n  [FAIL] NO API KEYS LOADED. Run:  python doctor.py")
-        return
-
-    comparator = OddsComparator(min_edge=0.0, min_ev_per_unit=0.0)
-    pending = _pending_keys(logger)
-    kmap = _kickoff_map()
-
-    # 1) in-window picks first (session-pure)
-    pool: list[BetOpportunity] = []
-    for max_h in (bound, 12.0, 24.0, 48.0):
-        cands = OddsApiFeed(min_hours_ahead=0.0, max_hours_ahead=max_h).collect()
-        pool = _clean_pool(cands, comparator, pending)
-        if len(pool) >= N_PICKS:
-            break
-        print(f"  .. {len(pool)}/8 in-window - widening to {max_h:.0f}h ...")
+        per_sport_supply[best.selection.league[:20]] += 1
 
     pool.sort(key=lambda o: o.selection.model_probability, reverse=True)
     picks = pool[:N_PICKS]
 
-    if not picks:
-        print("\n  [FAIL] not one priceable game found even at 48h. "
-              "Run:  python doctor.py")
-        return
+    print(f"\n  In-session supply by sport: "
+          + (", ".join(f"{k}:{v}" for k, v in
+                       sorted(per_sport_supply.items(), key=lambda x: -x[1]))
+             or "none"))
+
+    if len(picks) < N_PICKS:
+        print(
+            f"\n  [SHORTFALL] world supplied {len(picks)}/{N_PICKS} games that "
+            f"finish before the next session."
+        )
+        print("  Options: (a) accept fewer picks this session,")
+        print("           (b) run python single_shot.py at the NEXT session start.")
+        if tg.is_configured:
+            tg.send(
+                f"SINGLE SHOT {session.name}: {len(picks)}/{N_PICKS} in-session "
+                f"games exist right now - shortfall report, no cross picks."
+            )
+        if not picks:
+            return
 
     bankroll = Bankroll()
     placed = []
-    print(f"\n  Picking top {len(picks)} by win probability:\n")
+    print(f"\n  Picks ({len(picks)}), best probability first:\n")
     for i, o in enumerate(picks, start=1):
         platform = platforms[i - 1]
-        label, mult = _tier(o.selection.model_probability, o.ev_per_unit,
-                            tier1_prob)
+        label, mult = _tier(o.selection.model_probability, o.ev_per_unit)
         eff = round(base_stake * mult, 2)
-        in_window = session_window() >= _hours_until_kickoff(o, kmap)
-        tag = "" if in_window else "  [CROSS - finishes next window]"
         slip = Slip(slip_type="SINGLE",
                     legs=[SlipLeg.from_opportunity(o)],
                     stake_units=eff)
@@ -211,20 +252,28 @@ def main() -> None:
         placed.append((platform, o, bet_id, label, eff))
         leg = slip.legs[0]
         floor = round(leg.decimal_odds * 0.97, 2)
-        print(f"  {i}. [{label:<7}] {platform.upper()}{tag}")
-        print(f"     MATCH  : {leg.match_label.split(' · ')[0]}")
-        print(f"     KICKOFF: {_kickoff_eat(kmap.get(leg.match_id, ''))}")
-        print(f"     PICK   : {_anchor(leg.market, leg.selection, leg.match_label)}")
-        print(f"     PRICE  : take {leg.decimal_odds:.2f} | "
-              f"place if app >= {floor}")
-        print(f"     MODEL  : {leg.model_prob:.0%} win | EV {o.ev_per_unit * 100:+.1f}% "
-              f"| stake {eff:.2f}u | {bet_id}\n")
+        dur = sport_duration(o.selection.league)
+        ko = _kickoff_dt(kmap.get(leg.match_id, ""))
+        done_eat = (
+            (ko + __import__("datetime").timedelta(hours=dur))
+            .astimezone(EAT).strftime("%H:%M EAT")
+            if ko else "?"
+        )
+        print(f"  {i}. [{label:<7}] {platform.upper()}")
+        print(f"     MATCH   : {leg.match_label.split(' · ')[0]}")
+        print(f"     KICKOFF : {_kickoff_eat(kmap.get(leg.match_id, ''))} "
+              f"| settles ~{done_eat}")
+        print(f"     PICK    : {_anchor(leg.market, leg.selection, leg.match_label)}")
+        print(f"     PRICE   : take {leg.decimal_odds:.2f} | place if app >= {floor}")
+        print(f"     MODEL   : {leg.model_prob:.0%} win | "
+              f"EV {o.ev_per_unit * 100:+.1f}% | stake {eff:.2f}u | {bet_id}\n")
         if tg.is_configured:
             tg.send(
                 f"SINGLE {session.name} {i}/{len(picks)} -> {platform.upper()} "
-                f"[{label}]{tag}\n"
+                f"[{label}]\n"
                 f"{leg.match_label.split(' · ')[0]}\n"
-                f"KICKOFF {_kickoff_eat(kmap.get(leg.match_id, ''))}\n"
+                f"KICKOFF {_kickoff_eat(kmap.get(leg.match_id, ''))} | "
+                f"settles ~{done_eat}\n"
                 f"PICK: {_anchor(leg.market, leg.selection, leg.match_label)}\n"
                 f"Win prob {leg.model_prob:.0%} | take {leg.decimal_odds:.2f} | "
                 f"place if app >= {floor}\n"
@@ -235,34 +284,20 @@ def main() -> None:
         exp = sum(o.ev_per_unit * e for _, o, _, _, e in placed)
         avg_p = sum(o.selection.model_probability
                     for _, o, _, _, _ in placed) / len(placed)
-        tiers = defaultdict(int)
+        tiers: dict[str, int] = defaultdict(int)
         for _, _, _, l, _ in placed:
             tiers[l] += 1
-        tier_line = ", ".join(f"{k}:{v}" for k, v in sorted(tiers.items()))
         msg = (
-            f"SINGLE SHOT {session.name}: {len(placed)}/8 picks "
-            f"[{tier_line}], avg win prob {avg_p:.0%}, "
-            f"expected P/L {exp:+.2f}u, "
-            f"stake {sum(e for _, _, _, _, e in placed):.2f}u total.\n"
-            f"Stake size = confidence. FILLER picks are lottery-priced "
-            f"on purpose - 0.1u each.\n"
-            f"Auto-settle: python settle.py"
+            f"SINGLE SHOT {session.name}: {len(placed)} in-session picks "
+            f"[{', '.join(f'{k}:{v}' for k, v in sorted(tiers.items()))}], "
+            f"avg win prob {avg_p:.0%}, expected {exp:+.2f}u, "
+            f"stake {sum(e for _, _, _, _, e in placed):.2f}u. "
+            f"All settle inside this session."
         )
-        print(msg)
+        print("\n" + msg)
         if tg.is_configured:
             tg.send(msg)
     print("\n  Settle:  python settle.py")
-
-
-def _hours_until_kickoff(o: BetOpportunity, kmap: dict) -> float:
-    ts = kmap.get(o.selection.match_id)
-    if not ts:
-        return 0.0
-    try:
-        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-        return (dt - datetime.now(timezone.utc)).total_seconds() / 3600.0
-    except (ValueError, TypeError):
-        return 0.0
 
 
 if __name__ == "__main__":

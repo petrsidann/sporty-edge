@@ -252,6 +252,18 @@ class FeedSettings:
         # --- Other ---
         "icehockey_nhl",
         "mma_mixed_martial_arts",
+        "americanfootball_ncaaf",      # college football - huge slates
+        "americanfootball_nfl",
+        "soccer_usa_mls",
+        "soccer_brazil_serie_b",
+        "soccer_denmark_superliga",
+        "soccer_sweden_allsvenskan",
+        "soccer_norway_eliteserien",
+        "soccer_switzerland_super_league",
+        "soccer_belgium_first_div",
+        "soccer_scotland_premiership",
+        "soccer_uefa_europa_league",
+        "soccer_uefa_europa_conference_league",
     )
     min_books_for_consensus: int = 2
     min_edge_feed: float = 0.02

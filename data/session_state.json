@@ -1,5 +1,7 @@
 {
   "utc_date": "2026-09-07",
   "session": "S3",
-  "covered_ping": ""
+  "covered_ping": "",
+  "history_date": "2026-09-07",
+  "heartbeat_date": "2026-09-07"
 }

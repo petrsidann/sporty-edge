@@ -1,8 +1,6 @@
-"""
-session_cycle.py (FINAL) - the 30-min always-on orchestrator.
-Settle finished games -> top up smart picks to 8/session -> commit.
-Exhausted lanes announce ONCE. Idempotent and dedupe-safe.
-"""
+"""session_cycle.py (DUAL-LANE FINAL) - 30-min always-on orchestrator.
+Settle finished games -> top up smart picks to 8 -> refresh history data
+once per UTC day. Idempotent, dedupe-safe, quiet when covered."""
 
 from __future__ import annotations
 
@@ -12,73 +10,73 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from utils.term import force_utf8_stdio
+    force_utf8_stdio()
+except Exception:
+    pass
+
 from utils.logger import BetLogger
 from utils.session import clock_line, detect
-from utils.term import force_utf8_stdio
 
 STATE_PATH = Path("data") / "session_state.json"
 TARGET = 8
-
-
-def _pull():
-    try:
-        subprocess.run(["git", "pull", "--rebase", "-X", "theirs",
-                        "origin", "main"],
-                       capture_output=True, text=True, timeout=90)
-    except Exception as exc:
-        # Never silent: a skipped pull means we may be settling against a
-        # stale ledger.  The run continues (offline-safe) but says so.
-        print(f"[cycle] git pull skipped ({exc!r})")
-
-
-def _run(script):
-    try:
-        subprocess.run([sys.executable, script], timeout=1500, check=False)
-    except Exception as exc:
-        print(f"[cycle] {script} failed: {exc!r}")
-
-
-def _count_today(logger, session_name):
-    # UTC date: internal standard across machines.  The old date.today()
-    # (local, EAT+3) drifted from the UTC logged_at stamps after 21:00 EAT
-    # and silently undercounted the session's picks.
-    today = datetime.now(timezone.utc).date().isoformat()
-    return sum(
-        1 for rec in logger._read_all()
-        if rec.get("session") == session_name
-        and str(rec.get("logged_at", "")).startswith(today)
-    )
-
-
-def _load_state():
-    try:
-        s = json.loads(STATE_PATH.read_text(encoding="utf-8-sig"))
-        if isinstance(s, dict) and s.get("date") == _utc_today():
-            return s
-    except (OSError, json.JSONDecodeError):
-        pass
-    return {"date": _utc_today(), "session": "",
-            "announced": False, "exhausted": False}
 
 
 def _utc_today() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
-def _save_state(s):
+def _pull() -> None:
+    try:
+        subprocess.run(["git", "pull", "--rebase", "-X", "theirs",
+                        "origin", "main"],
+                       capture_output=True, text=True, timeout=90)
+    except Exception:
+        pass
+
+
+def _run(script: str) -> None:
+    try:
+        subprocess.run([sys.executable, script], timeout=1500, check=False)
+    except Exception as exc:
+        print(f"[cycle] {script} failed: {exc!r}")
+
+
+def _count_today(logger: BetLogger, session_name: str) -> int:
+    today = _utc_today()
+    return sum(
+        1 for rec in logger._read_all()
+        if rec.get("session") == session_name
+        and str(rec.get("logged_at", ""))[:10] == today
+    )
+
+
+def _load_state() -> dict:
+    try:
+        s = json.loads(STATE_PATH.read_text(encoding="utf-8-sig"))
+        if isinstance(s, dict) and s.get("utc_date") == _utc_today():
+            return s
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {"utc_date": _utc_today(), "session": "",
+            "announced": False, "exhausted": False, "history_done": False}
+
+
+def _save_state(s: dict) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(s, indent=2), encoding="utf-8")
 
 
-def main():
-    force_utf8_stdio()
+def main() -> None:
     _pull()
     session = detect()
     lg = BetLogger()
     state = _load_state()
     if state.get("session") != session.name:
-        state = {"date": _utc_today(), "session": session.name,
-                 "announced": False, "exhausted": False}
+        state = {"utc_date": _utc_today(), "session": session.name,
+                 "announced": False, "exhausted": False,
+                 "history_done": state.get("history_done", False)}
         _save_state(state)
 
     print(f"[cycle] {clock_line()}")
@@ -95,7 +93,7 @@ def main():
             t = TelegramNotifier()
             if t.is_configured:
                 t.send(f"{session.emoji} {session.name}: market exhausted at "
-                       f"{before}/8 - next session reopens the board.")
+                       f"{before}/8 - next window reopens the board.")
             _save_state(state)
     if n >= TARGET and not state.get("announced"):
         from notify.telegram import TelegramNotifier
@@ -105,6 +103,13 @@ def main():
                    f"{n} picks live across the platforms.")
         state["announced"] = True
         _save_state(state)
+
+    if not state.get("history_done"):
+        print("[cycle] refreshing history data (once per day)...")
+        _run("update_history.py")
+        state["history_done"] = True
+        _save_state(state)
+
     print(f"[cycle] done | picks {n}/{TARGET}")
 
 

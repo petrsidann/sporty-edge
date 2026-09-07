@@ -163,7 +163,7 @@ class StakingSettings:
     unit_size: float = 100.0
     kelly_fraction: float = 0.25
     max_stake_pct_bankroll: float = 0.02
-    max_daily_exposure_pct: float = 0.05
+    max_daily_exposure_pct: float = 0.12
     max_units_per_bet: float = 2.0
     max_drawdown_pct: float = 0.25
 

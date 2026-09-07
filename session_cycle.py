@@ -1,7 +1,5 @@
-"""session_cycle.py (DUAL-LANE FINAL) - 30-min always-on orchestrator.
-Settle finished games -> top up smart picks to 8 -> refresh history data
-once per UTC day. Idempotent, dedupe-safe, quiet when covered."""
-
+"""session_cycle.py - 30-min orchestrator. Min 10 picks, up to 25 when the
+board is fat. Sends a Telegram status EVERY cycle - silence is impossible."""
 from __future__ import annotations
 
 import json
@@ -20,7 +18,8 @@ from utils.logger import BetLogger
 from utils.session import clock_line, detect
 
 STATE_PATH = Path("data") / "session_state.json"
-TARGET = 10
+TARGET_MIN = 10
+TARGET_MAX = 25
 
 
 def _utc_today() -> str:
@@ -29,8 +28,7 @@ def _utc_today() -> str:
 
 def _pull() -> None:
     try:
-        subprocess.run(["git", "pull", "--rebase", "-X", "theirs",
-                        "origin", "main"],
+        subprocess.run(["git", "pull", "--rebase", "-X", "theirs", "origin", "main"],
                        capture_output=True, text=True, timeout=90)
     except Exception:
         pass
@@ -45,11 +43,9 @@ def _run(script: str) -> None:
 
 def _count_today(logger: BetLogger, session_name: str) -> int:
     today = _utc_today()
-    return sum(
-        1 for rec in logger._read_all()
-        if rec.get("session") == session_name
-        and str(rec.get("logged_at", ""))[:10] == today
-    )
+    return sum(1 for rec in logger._read_all()
+               if rec.get("session") == session_name
+               and str(rec.get("logged_at", ""))[:10] == today)
 
 
 def _load_state() -> dict:
@@ -59,8 +55,7 @@ def _load_state() -> dict:
             return s
     except (OSError, json.JSONDecodeError):
         pass
-    return {"utc_date": _utc_today(), "session": "",
-            "announced": False, "exhausted": False, "history_done": False}
+    return {"utc_date": _utc_today(), "session": "", "covered_ping": ""}
 
 
 def _save_state(s: dict) -> None:
@@ -75,57 +70,32 @@ def main() -> None:
     state = _load_state()
     if state.get("session") != session.name:
         state = {"utc_date": _utc_today(), "session": session.name,
-                 "announced": False, "exhausted": False,
-                 "history_done": state.get("history_done", False)}
+                 "covered_ping": ""}
         _save_state(state)
 
     print(f"[cycle] {clock_line()}")
     _run("settle_auto.py")
 
     n = _count_today(lg, session.name)
-    if n < TARGET and not state.get("exhausted"):
-        before = n
+    if n < TARGET_MAX:
         _run("smart_picks.py")
         n = _count_today(lg, session.name)
-        if n == before and before > 0:
-            state["exhausted"] = True
-            from notify.telegram import TelegramNotifier
-            t = TelegramNotifier()
-            if t.is_configured:
-                t.send(f"{session.emoji} {session.name}: market exhausted at "
-                       f"{before}/8 - next window reopens the board.")
+
+    from notify.telegram import TelegramNotifier
+    tg = TelegramNotifier()
+    if tg.is_configured:
+        if n >= TARGET_MIN and state.get("covered_ping") != session.name:
+            tg.send(f"✅ {session.emoji} {session.name} covered - {n} picks live "
+                    f"(target met, board keeps topping up to {TARGET_MAX}).")
+            state["covered_ping"] = session.name
             _save_state(state)
-    if n >= TARGET and not state.get("announced"):
-        from notify.telegram import TelegramNotifier
-        t = TelegramNotifier()
-        if t.is_configured:
-            t.send(f"✅ {session.emoji} {session.name} fully covered - "
-                   f"{n} picks live across the platforms.")
-        state["announced"] = True
-        _save_state(state)
-
-    if not state.get("history_done"):
-        print("[cycle] refreshing history data (once per day)...")
-        _run("update_history.py")
-        state["history_done"] = True
-        _save_state(state)
-
-    print(f"[cycle] done | picks {n}/{TARGET}")
-
-    # daily heartbeat so silence is never ambiguous
-    hb = Path("data") / "heartbeat.txt"
-    today = datetime.now(timezone.utc).date().isoformat()
-    last = ""
-    try:
-        last = hb.read_text().strip()
-    except OSError:
-        pass
-    if last != today:
-        from notify.telegram import TelegramNotifier
-        tg = TelegramNotifier()
-        if tg.is_configured:
-            tg.send(f"heartbeat: cycles running, today covered={n}/{TARGET}")
-        hb.write_text(today)
+        elif n < TARGET_MIN:
+            tg.send(f"📋 {session.emoji} {session.name}: {n}/{TARGET_MIN} picks so "
+                    f"far - next 30-min cycle adds more as games get listed.")
+        else:
+            tg.send(f"📋 {session.emoji} {session.name}: {n} picks live "
+                    f"(max {TARGET_MAX}). Settles arrive automatically.")
+    print(f"[cycle] done | picks {n} (min {TARGET_MIN}, max {TARGET_MAX})")
 
 
 if __name__ == "__main__":

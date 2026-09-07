@@ -251,8 +251,6 @@ class FeedSettings:
         "baseball_npb",                # Nippon Professional Baseball
         "baseball_kbo",                # Korean Baseball Organization
         "soccer_japan_j_league",
-        "soccer_japan_j2_league",
-        "soccer_korea_kleague2",
         "soccer_korea_kleague1",
         "soccer_australia_aleague",
         # --- Other ---
@@ -265,9 +263,7 @@ class FeedSettings:
         "soccer_denmark_superliga",
         "soccer_sweden_allsvenskan",
         "soccer_norway_eliteserien",
-        "soccer_switzerland_super_league",
         "soccer_belgium_first_div",
-        "soccer_scotland_premiership",
         "soccer_uefa_europa_league",
         "soccer_uefa_europa_conference_league",
     )

@@ -36,24 +36,40 @@ DC_HAIRCUT = 0.95
 DISCOVER_TS = Path("data") / "sport_discovery.json"
 
 # Per-session sport keys (invalid keys 422-skip free of charge)
-SESSION_SPORTS: dict[str, tuple[str, ...]] = {
-    "S1": ("baseball_mlb", "basketball_nba", "icehockey_nhl",
-           "soccer_australia_aleague", "soccer_japan_j_league",
-           "soccer_korea_kleague1", "basketball_ncaab"),
-    "S2": ("soccer_russia_premier_league", "soccer_poland_ekstraklasa",
-           "soccer_czech_first_div", "soccer_hungary_nb_i",
-           "soccer_turkey_super_league", "soccer_greece_super_league"),
-    "S3": ("soccer_epl", "soccer_spain_la_liga", "soccer_italy_serie_a",
-           "soccer_uefa_champs_league", "basketball_euroleague",
-           "soccer_efl_champ", "soccer_germany_bundesliga",
-           "soccer_france_ligue_one", "soccer_netherlands_eredivisie",
-           "soccer_portugal_primeira_liga", "soccer_uefa_europa_league",
-           "soccer_uefa_europa_conference_league"),
-    "S4": ("soccer_brazil_campeonato", "soccer_brazil_serie_b",
-           "soccer_argentina_primera_division", "soccer_mexico_ligamx",
-           "soccer_usa_mls", "americanfootball_nfl", "basketball_nba",
-           "americanfootball_ncaaf", "baseball_mlb", "icehockey_nhl"),
+# Per-session sport selection: keyword-matched against DISCOVERED keys
+# (data/valid_sports.json) - never guesses, never 404s.
+SESSION_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "S1": ("mlb", "nba", "nhl", "australia", "j_league", "japan",
+           "kleague", "korea"),
+    "S2": ("russia", "poland", "czech", "hungary", "greece", "turkey",
+           "tennis_", "serbia", "croatia", "romania"),
+    "S3": ("epl", "la_liga", "serie_a", "champs_league", "euroleague",
+           "efl_champ", "bundesliga", "ligue_one", "eredivisie",
+           "primeira_liga", "europa_league", "conference_league",
+           "switzerland", "scotland_prem", "denmark", "sweden_allsvenskan",
+           "norway_eliteserien", "belgium_first_div"),
+    "S4": ("brazil", "argentina", "mexico", "mls", "nfl", "nba", "ncaaf",
+           "mlb", "nhl"),
 }
+
+
+def _session_sports(session_name: str) -> tuple[str, ...]:
+    """Match discovered keys (key + title) against session keywords."""
+    try:
+        sports = json.loads(
+            Path("data/valid_sports.json").read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+    kws = SESSION_KEYWORDS.get(session_name, ())
+    out = []
+    for s in sports:
+        key = (s.get("key") or "")
+        title = (s.get("title") or "").lower()
+        for kw in kws:
+            if kw in key.lower() or kw in title:
+                out.append(key)
+                break
+    return tuple(out)
 
 DURATIONS = [
     ("mlb", 2.9), ("kbo", 2.9), ("npb", 2.9), ("baseball", 2.9),
@@ -235,7 +251,7 @@ def main() -> None:
             tg.send(msg)
         return
 
-    sports = list(SESSION_SPORTS.get(session.name, ()))
+    sports = list(_session_sports(session.name))
     if session.name in ("S2", "S3"):
         sports.extend(_discover_tennis())
 

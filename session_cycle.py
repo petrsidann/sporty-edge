@@ -112,6 +112,21 @@ def main() -> None:
 
     print(f"[cycle] done | picks {n}/{TARGET}")
 
+    # daily heartbeat so silence is never ambiguous
+    hb = Path("data") / "heartbeat.txt"
+    today = datetime.now(timezone.utc).date().isoformat()
+    last = ""
+    try:
+        last = hb.read_text().strip()
+    except OSError:
+        pass
+    if last != today:
+        from notify.telegram import TelegramNotifier
+        tg = TelegramNotifier()
+        if tg.is_configured:
+            tg.send(f"heartbeat: cycles running, today covered={n}/{TARGET}")
+        hb.write_text(today)
+
 
 if __name__ == "__main__":
     main()

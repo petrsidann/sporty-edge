@@ -35,7 +35,7 @@ from utils.logger import BetLogger
 from utils.session import EAT, clock_line, detect
 
 PLATFORMS: list[str] = ["BetPawa", "Betika", "LuckyPari", "WekaWin", "BetJam"]
-N_PICKS = 8
+N_PICKS = 10
 WINDOW_HOURS = 4.0
 CACHE = Path("data") / "feed_cache.json"
 

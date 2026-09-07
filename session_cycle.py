@@ -20,7 +20,7 @@ from utils.logger import BetLogger
 from utils.session import clock_line, detect
 
 STATE_PATH = Path("data") / "session_state.json"
-TARGET = 8
+TARGET = 10
 
 
 def _utc_today() -> str:

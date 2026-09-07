@@ -24,7 +24,15 @@ except Exception:
 
 from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
-from odds.comparator import BetOpportunity, OddsComparator, Selection
+from config.settings import (
+    CALIBRATION_SETTINGS,
+    DC_DERIVED_MARGIN,
+    HIT_RATE_SETTINGS,
+    MIN_PLATFORM_SAMPLE,
+    MODEL_BLEND_MODEL_WEIGHT,
+    N_PICKS,
+)
+from odds.comparator import BetOpportunity, OddsComparator, OddsQuote, Selection
 from slips.generator import Slip, SlipLeg
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
@@ -217,6 +225,189 @@ def _blend(league: str, home: str, away: str, p_home: float, p_away: float):
     except Exception:
         pass
     return None
+
+
+def _shrink_prob(prob: float) -> float:
+    """Apply the calibration shrinkage factor (1.0 = no-op, default)."""
+    factor = CALIBRATION_SETTINGS.shrinkage_factor
+    if factor >= 1.0:
+        return prob
+    p = 0.5 + (prob - 0.5) * factor
+    return min(max(p, 0.01), 0.99)
+
+
+def _with_prob(opp: BetOpportunity, prob: float) -> BetOpportunity:
+    """Copy of ``opp`` with a new model probability (dataclasses are frozen)."""
+    return dc_replace(opp, selection=dc_replace(opp.selection, model_probability=prob))
+
+
+def _blend_with_model(
+    engine, opp: BetOpportunity
+) -> tuple[BetOpportunity, bool]:
+    """Blend consensus with the strength-engine model when BOTH teams are
+    known: p = 0.4 * model + 0.6 * consensus (MODEL_BLEND_MODEL_WEIGHT).
+
+    Returns (opportunity, blended_flag).  Unknown engine, unknown teams,
+    unmodelled markets and any failure all fall back to pure consensus --
+    blending is an upgrade, never a dependency.
+    """
+    if engine is None:
+        return opp, False
+    market = opp.selection.market.upper()
+    pick = opp.selection.selection
+    try:
+        if market not in ("1X2", "ML") and not market.startswith(("O/U", "DC")):
+            return opp, False
+        home, away = _teams(opp.selection.match_label)
+        if not engine.has(home, away):
+            return opp, False
+        xg = engine.expected_goals(home, away, opp.selection.league)
+        model = PoissonMatchModel(xg)
+        model_prob: float | None = None
+        if market in ("1X2", "ML"):
+            model_prob = model.one_x_two().get(pick)
+        elif market.startswith("O/U"):
+            line = float(market.split()[-1])
+            model_prob = model.over_under(line).get(pick.lower())
+        elif market.startswith("DC"):
+            model_prob = model.double_chance().get(pick)
+        if model_prob is None or not 0.0 < model_prob < 1.0:
+            return opp, False
+        blended = (MODEL_BLEND_MODEL_WEIGHT * model_prob
+                   + (1.0 - MODEL_BLEND_MODEL_WEIGHT)
+                   * opp.selection.model_probability)
+        if not 0.01 <= blended <= 0.99:
+            return opp, False
+        return _with_prob(opp, blended), True
+    except Exception:
+        # The model must never cost a session: consensus stands.
+        return opp, False
+
+
+def _dc_candidates(h2h: dict) -> list[tuple[BetOpportunity, str]]:
+    """Double-chance candidates DERIVED from the 1X2 consensus.
+
+    The feed carries no DC quotes, so the reference price is derived from
+    the devigged consensus: ref = 1/p * (1 - DC_DERIVED_MARGIN), then the
+    usual 3% price floor applies on top.  This is disclosed on the pick
+    message so the owner verifies the real DC price on the app.
+    """
+    out: list[tuple[BetOpportunity, str]] = []
+    comparator = OddsComparator(min_edge=0.0, min_ev_per_unit=0.0)
+    for sides in h2h.values():
+        h, d, a = (sides.get("Home"), sides.get("Draw"), sides.get("Away"))
+        if not (h and d and a):
+            continue  # 2-way sport: no double chance exists
+        for pick, opps in (("1X", (h, d)), ("X2", (d, a)), ("12", (h, a))):
+            p = sum(o.selection.model_probability for o in opps)
+            if not (HIT_RATE_SETTINGS.min_prob - 1e-9 <= p <= 0.995):
+                continue
+            derived = (1.0 / p) * (1.0 - DC_DERIVED_MARGIN)
+            if derived > HIT_RATE_SETTINGS.max_odds + 1e-9:
+                continue
+            sel = dc_replace(opps[0].selection, market="DC", selection=pick,
+                             model_probability=p)
+            out.append((comparator.evaluate(
+                sel, [OddsQuote(book="derived-1X2", decimal_odds=round(derived, 3))]
+            ), "HIT"))
+    return out
+
+
+def _hit_candidates(h2h: dict, totals: dict) -> list[tuple[BetOpportunity, str]]:
+    """All [HIT]-eligible candidates: probability >= min_prob, odds <= cap.
+
+    Sources: moneylines with a strong consensus, the low/high totals lines
+    (Over 0.5 / Over 1.5 / Under 4.5 / Under 5.5 by default), and derived
+    double chance.  Ranking and per-match dedupe happen in main().
+    Thresholds tolerate a 1e-9 float wobble (0.70 + 0.10 < 0.80 in binary).
+    """
+    out: list[tuple[BetOpportunity, str]] = []
+    p_min = HIT_RATE_SETTINGS.min_prob - 1e-9
+    o_max = HIT_RATE_SETTINGS.max_odds + 1e-9
+
+    for sides in h2h.values():
+        for opp in sides.values():
+            if opp.selection.model_probability >= p_min \
+                    and opp.decimal_odds <= o_max:
+                out.append((opp, "HIT"))
+
+    hit_lines = set(HIT_RATE_SETTINGS.lines)
+    for lines in totals.values():
+        for opp in lines:
+            market = opp.selection.market.upper()
+            try:
+                line = float(market.split()[-1])
+            except (ValueError, IndexError):
+                continue
+            if line in hit_lines and opp.selection.model_probability >= p_min \
+                    and opp.decimal_odds <= o_max:
+                out.append((opp, "HIT"))
+
+    out.extend(_dc_candidates(h2h))
+    return out
+
+
+def platform_slots(
+    performance: dict[str, dict],
+    platforms: list[str],
+    n_slots: int = N_PICKS,
+    min_sample: int = MIN_PLATFORM_SAMPLE,
+) -> list[str]:
+    """The ``n_slots`` platform assignments for one session.
+
+    ``performance`` maps platform -> {"n", "wins", "staked", "profit"} from
+    the ledger.  Platforms with >= min_sample settled bets are ranked by
+    win rate (then ROI -- the owner's goal is the hit rate, profit breaks
+    ties); the top 3 get two picks, the rest get one.  Platforms without
+    enough history keep the default order.  Pure function: testable
+    without a feed or a ledger.
+    """
+    targets = list(platforms)
+    if not targets:
+        return []
+    measured = []
+    for name in targets:
+        stats = performance.get(name) or {}
+        settled = int(stats.get("n") or 0)
+        if settled >= min_sample and stats.get("staked"):
+            wins = int(stats.get("wins") or 0)
+            roi = float(stats.get("profit") or 0.0) / float(stats["staked"])
+            measured.append((name, wins / settled, roi))
+    ranked = [name for name, _wr, _roi in
+              sorted(measured, key=lambda t: (t[1], t[2]), reverse=True)]
+    ordered = ranked + [p for p in targets if p not in ranked]
+
+    slots: list[str] = []
+    doubles = 3 if len(ordered) >= 5 else len(ordered)
+    while len(slots) < n_slots:
+        for i, name in enumerate(ordered):
+            if len(slots) >= n_slots:
+                break
+            slots.append(name)
+            if i >= doubles:
+                continue
+            if len(slots) < n_slots:
+                slots.append(name)
+    return slots
+
+
+def _platform_performance(logger: BetLogger) -> dict[str, dict]:
+    """Per-platform settled record from the ledger (platform recorded at
+    log time by smart_picks, or via attach_code)."""
+    perf: dict[str, dict] = {}
+    for rec in logger._read_all():
+        plat = rec.get("platform")
+        status = rec.get("status")
+        if not plat or status not in ("WIN", "LOSS"):
+            continue
+        d = perf.setdefault(str(plat), {"n": 0, "wins": 0,
+                                        "staked": 0.0, "profit": 0.0})
+        d["n"] += 1
+        d["staked"] += float(rec.get("stake_units") or 0.0)
+        d["profit"] += float(rec.get("profit_units") or 0.0)
+        if status == "WIN":
+            d["wins"] += 1
+    return perf
 
 
 def main() -> None:

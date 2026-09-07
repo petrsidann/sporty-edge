@@ -357,6 +357,17 @@ class HitRateSettings:
 #: model.  Blended picks are labelled [MODEL] in Telegram.
 MODEL_BLEND_MODEL_WEIGHT: float = 0.4
 
+#: Default number of picks per session (used by smart_picks.platform_slots).
+N_PICKS: int = 8
+
+#: Per-platform settled-bet sample required before ledger ranking rotates
+#: the platform order (smart_picks.platform_slots).
+MIN_PLATFORM_SAMPLE: int = 10
+
+#: Double-chance derived price: ref = (1 / p) * (1 - DC_DERIVED_MARGIN).
+#: Mirrors the 5% haircut already used in smart_picks main() (DC_HAIRCUT).
+DC_DERIVED_MARGIN: float = 0.05
+
 
 @dataclass(frozen=True)
 class CalibrationSettings:

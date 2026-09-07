@@ -16,6 +16,7 @@ except Exception:
 
 from utils.logger import BetLogger
 from utils.session import clock_line, detect
+from utils.heartbeat import Heartbeat
 
 STATE_PATH = Path("data") / "session_state.json"
 TARGET_MIN = 10
@@ -63,6 +64,19 @@ def _save_state(s: dict) -> None:
     STATE_PATH.write_text(json.dumps(s, indent=2), encoding="utf-8")
 
 
+def _daily_refresh(state: dict) -> None:
+    """Run history refresh once per UTC day. Flag persisted in session_state.json
+    so it survives across cycles and processes."""
+    if state.get("history_date") == _utc_today():
+        return
+    print("[cycle] daily history refresh (fetch_history + fetch_more_history)...")
+    _run("fetch_history.py")
+    _run("fetch_more_history.py")
+    state["history_date"] = _utc_today()
+    _save_state(state)
+    print("[cycle] daily history refresh complete.")
+
+
 def main() -> None:
     _pull()
     session = detect()
@@ -73,10 +87,14 @@ def main() -> None:
                  "covered_ping": ""}
         _save_state(state)
 
+    # Daily data refresh (once per UTC day, flag in session_state.json).
+    _daily_refresh(state)
+
     print(f"[cycle] {clock_line()}")
     _run("settle_auto.py")
 
     n = _count_today(lg, session.name)
+    errors = 0
     if n < TARGET_MAX:
         _run("smart_picks.py")
         n = _count_today(lg, session.name)
@@ -95,6 +113,12 @@ def main() -> None:
         else:
             tg.send(f"📋 {session.emoji} {session.name}: {n} picks live "
                     f"(max {TARGET_MAX}). Settles arrive automatically.")
+
+    # Heartbeat: every cycle appends to heartbeat.log; one Telegram ping per UTC day.
+    hb = Heartbeat()
+    hb.tick(session_name=session.name, picks_so_far=n, errors=errors)
+    hb.maybe_telegram(tg)
+
     print(f"[cycle] done | picks {n} (min {TARGET_MIN}, max {TARGET_MAX})")
 
 

@@ -1,6 +1,5 @@
 {
-  "date": "2026-09-07",
-  "session": "S6",
-  "announced": false,
-  "exhausted": false
+  "utc_date": "2026-09-07",
+  "session": "S2",
+  "covered_ping": "S2"
 }

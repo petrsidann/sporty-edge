@@ -54,6 +54,8 @@ from slips.generator import Slip, SlipLeg
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
 from utils.session import EAT, clock_line, detect
+from models.ratings import sport_of_league, pair_prob
+from dataclasses import replace as dc_replace
 from utils.term import force_utf8_stdio
 
 N_PICKS = 8
@@ -479,6 +481,29 @@ def main() -> None:
         hit_picks = hit_picks[:N_PICKS]
 
     # ---------------- lane 2: WINNER/TOTALS for the remainder -------------- #
+    # ---- ratings blend: adjust consensus with our own win-rate model ----
+    blended_ids: set[str] = set()
+    for mid, sides in h2h.items():
+        if not sides:
+            continue
+        league = next(iter(sides.values())).selection.league
+        sport = sport_of_league(league)
+        if sport is None:
+            continue
+        home, away = sides.get("Home"), sides.get("Away")
+        if home is None or away is None:
+            continue
+        hn, an = home.selection.match_label.split(" vs ")[0].strip(),             home.selection.match_label.split(" vs ")[1].split(" ? ")[0].strip()
+        p_model = pair_prob(sport, hn, an)
+        if p_model is None:
+            continue
+        def _bl(o, pm):
+            sel = dc_replace(o.selection, model_probability=0.4 * pm + 0.6 * o.selection.model_probability)
+            return dc_replace(o, selection=sel)
+        sides["Home"] = _bl(home, p_model)
+        sides["Away"] = _bl(away, 1.0 - p_model)
+        blended_ids.add(mid)
+
     candidates: list[tuple[BetOpportunity, str]] = []
     for mid, sides in h2h.items():
         if mid in (used_matches | reserved):

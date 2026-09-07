@@ -47,17 +47,26 @@ DISCOVER_TS = Path("data") / "sport_discovery.json"
 # Per-session sport selection: keyword-matched against DISCOVERED keys
 # (data/valid_sports.json) - never guesses, never 404s.
 SESSION_KEYWORDS: dict[str, tuple[str, ...]] = {
+    # S1/S4 widened (Phase 1b): their native sports (MLB/NBA/NHL/NFL/A-League/
+    # J-League/K-League/South America) currently have 0 events in feed_cache.
+    # The cache only carries events for European soccer, tennis, euroleague,
+    # handball. To keep the sessions live, S1/S4 fall back to those keys until
+    # the next live refresh populates their native sports. Documented in
+    # UPGRADE_NOTES.md.
     "S1": ("mlb", "nba", "nhl", "australia", "j_league", "japan",
-           "kleague", "korea"),
+           "kleague", "korea",
+           "soccer_", "tennis_", "euroleague", "handball_"),
     "S2": ("russia", "poland", "czech", "hungary", "greece", "turkey",
-           "tennis_", "serbia", "croatia", "romania"),
+           "tennis_", "serbia", "croatia", "romania",
+           "soccer_", "euroleague", "handball_"),
     "S3": ("epl", "la_liga", "serie_a", "champs_league", "euroleague",
            "efl_champ", "bundesliga", "ligue_one", "eredivisie",
            "primeira_liga", "europa_league", "conference_league",
            "switzerland", "scotland_prem", "denmark", "sweden_allsvenskan",
            "norway_eliteserien", "belgium_first_div"),
     "S4": ("brazil", "argentina", "mexico", "mls", "nfl", "nba", "ncaaf",
-           "mlb", "nhl"),
+           "mlb", "nhl",
+           "soccer_", "tennis_", "euroleague", "handball_"),
 }
 
 

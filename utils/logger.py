@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from slips.generator import Slip
+from utils.filelock import exclusive_lock
 
 DEFAULT_LEDGER_PATH = Path("data") / "bets.jsonl"
 
@@ -40,8 +41,14 @@ class BetLogger:
 
     # ------------------------------ Writing ----------------------------- #
 
-    def log_slip(self, slip: Slip, session: str | None = None) -> str:
-        """Persist a slip as PENDING and return its bet id."""
+    def _slip_record(
+        self,
+        slip: Slip,
+        session: str | None,
+        platform: str | None,
+        extra: dict[str, Any] | None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Build the ledger record for a slip (no I/O)."""
         bet_id = f"BET-{slip.slip_id}"
         record: dict[str, Any] = {
             "bet_id": bet_id,
@@ -54,16 +61,83 @@ class BetLogger:
             "ev_per_unit": round(slip.ev_per_unit, 6),
             "stake_units": slip.stake_units,
             "session": session,
-            "platform": None,
+            "platform": platform,
             "booking_code": None,
             "status": "PENDING",
             "settled_at": None,
             "payout_units": 0.0,
             "profit_units": 0.0,
         }
+        if extra:
+            record.update(extra)
+        return bet_id, record
+
+    def _append(self, record: dict[str, Any]) -> None:
+        """Append one record; caller must hold exclusive_lock(self.path)."""
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def log_slip(
+        self,
+        slip: Slip,
+        session: str | None = None,
+        platform: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> str:
+        """Persist a slip as PENDING and return its bet id.
+
+        ``platform`` records the bet target this pick was assigned to at log
+        time (the ledger previously only learned platforms via attach_code,
+        which meant the platform post-mortem had no data to work with).
+        ``extra`` merges optional metadata (e.g. {"lane": "HIT"}).
+        """
+        bet_id, record = self._slip_record(slip, session, platform, extra)
+        # Append under the cross-process lock: the Windows scheduler and a
+        # manual run can otherwise interleave mid-line and corrupt the file.
+        with exclusive_lock(self.path):
+            self._append(record)
         return bet_id
+
+    def try_log_slip(
+        self,
+        slip: Slip,
+        session: str | None = None,
+        platform: str | None = None,
+        extra: dict[str, Any] | None = None,
+        leg_keys: set | frozenset = frozenset(),
+        match_ids: set | frozenset = frozenset(),
+    ) -> str | None:
+        """Dedupe-safe log: append ONLY if no PENDING leg already covers one
+        of ``leg_keys`` / ``match_ids``.
+
+        The check and the append both run inside one ledger lock, so two
+        processes (scheduled task + manual run) racing the same window can
+        no longer both pass the pre-check and double-log the same match.
+        Returns the bet id, or None when a duplicate was detected.
+        """
+        bet_id, record = self._slip_record(slip, session, platform, extra)
+        with exclusive_lock(self.path):
+            have_keys, have_matches = self._pending_index()
+            if any(k in have_keys for k in leg_keys) or \
+                    any(m in have_matches for m in match_ids):
+                return None
+            self._append(record)
+        return bet_id
+
+    def _pending_index(self) -> tuple[set, set]:
+        """{(match_id, market, selection)}, {match_id} over PENDING records."""
+        keys: set = set()
+        matches: set = set()
+        for rec in self._read_all():
+            if rec.get("status") != "PENDING":
+                continue
+            for leg in rec.get("legs", []):
+                if not isinstance(leg, dict):
+                    continue
+                keys.add((leg.get("match_id"), leg.get("market"),
+                          leg.get("selection")))
+                matches.add(leg.get("match_id"))
+        return keys, matches
 
     def attach_code(self, bet_id: str, platform: str, code: str) -> dict[str, Any]:
         """Record the platform's booking code / bet reference for a logged bet."""
@@ -128,20 +202,38 @@ class BetLogger:
         if not self.path.exists():
             return []
         records: list[dict[str, Any]] = []
+        warned = False
         with self.path.open("r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
-                if line:
-                    records.append(json.loads(line))
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    # A torn/corrupt line (crash mid-write, git merge artifact)
+                    # must never take the pipeline down: skip it, keep the
+                    # rest of the ledger readable, warn once.
+                    if not warned:
+                        print(f"  !! ledger: skipping corrupt line(s) in {self.path}")
+                        warned = True
+                    continue
+                if isinstance(rec, dict):
+                    records.append(rec)
         return records
 
     def _write_all(self, records: list[dict[str, Any]]) -> None:
-        """Atomic rewrite: temp file then rename, so a crash can't corrupt."""
+        """Atomic rewrite: temp file then rename, so a crash can't corrupt.
+
+        Runs under the cross-process lock so a concurrent append cannot be
+        lost between the read and the rename.
+        """
         tmp = self.path.with_suffix(".jsonl.tmp")
-        with tmp.open("w", encoding="utf-8") as fh:
-            for rec in records:
-                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        os.replace(tmp, self.path)
+        with exclusive_lock(self.path):
+            with tmp.open("w", encoding="utf-8") as fh:
+                for rec in records:
+                    fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            os.replace(tmp, self.path)
 
     def pending(self) -> list[dict[str, Any]]:
         return [r for r in self._read_all() if r["status"] == "PENDING"]
@@ -169,9 +261,23 @@ class BetLogger:
             "roi": round(profit / staked, 4) if staked > 0 else 0.0,
         }
         # Lazily imported so the ledger never depends on the feed at load time.
-        from utils.clv import closing_metrics
+        # CLV source of truth: per-leg clv attached to the ledger itself (by
+        # settle_auto.py).  Falls back to the closing snapshot file while the
+        # ledger has none.  Missing data = None, never 0.
+        # CLV is a PRE-RESULT signal (beating the close is known at kickoff),
+        # so PENDING legs count too -- only the P/L fields are settled-only.
+        from utils.clv import clv_metrics_from_values, closing_metrics
 
-        metrics.update(closing_metrics())
+        leg_clvs = [
+            float(leg["clv"])
+            for rec in records
+            for leg in rec.get("legs", [])
+            if isinstance(leg, dict) and isinstance(leg.get("clv"), (int, float))
+        ]
+        if leg_clvs:
+            metrics.update(clv_metrics_from_values(leg_clvs))
+        else:
+            metrics.update(closing_metrics())
         return metrics
 
     def summary_frame(self) -> pd.DataFrame:

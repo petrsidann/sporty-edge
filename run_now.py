@@ -19,6 +19,8 @@ from __future__ import annotations
 import subprocess
 import sys
 
+from utils.term import force_utf8_stdio
+
 
 def _run(script: str) -> None:
     """Run one pipeline script; failures never stop the chain."""
@@ -30,6 +32,7 @@ def _run(script: str) -> None:
 
 
 def main() -> None:
+    force_utf8_stdio()
     print("=" * 66)
     print("  sporty-edge | run_now: settle -> scan -> Telegram picks")
     print("=" * 66)

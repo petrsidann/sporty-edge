@@ -472,6 +472,11 @@ class OddsApiFeed:
         if not self.api_keys:
             return []
         force = refresh or "--refresh" in sys.argv
+        # Offline override: SMOKE_OFFLINE=1 (or --offline) makes collect()
+        # use ONLY the local cache.  Meant for tests and air-gapped runs;
+        # the normal pipeline never sets it.
+        offline = os.environ.get("SMOKE_OFFLINE", "") not in ("", "0") \
+            or "--offline" in sys.argv
         cache = {} if force else self._load_cache()
         ttl = _CFG_TTL_HOURS
         now = time.time()
@@ -486,6 +491,8 @@ class OddsApiFeed:
                     f"age {age:.1f}h  [0 credits]"
                 )
                 merged[sport] = entry
+            elif offline:
+                print(f"    cache-only: {sport} (offline mode, [0 credits])")
             else:
                 events = self._fetch_sport(sport)
                 if events is not None:

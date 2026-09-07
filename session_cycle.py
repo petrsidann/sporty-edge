@@ -9,11 +9,12 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 
 from utils.logger import BetLogger
 from utils.session import clock_line, detect
+from utils.term import force_utf8_stdio
 
 STATE_PATH = Path("data") / "session_state.json"
 TARGET = 8
@@ -24,8 +25,10 @@ def _pull():
         subprocess.run(["git", "pull", "--rebase", "-X", "theirs",
                         "origin", "main"],
                        capture_output=True, text=True, timeout=90)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Never silent: a skipped pull means we may be settling against a
+        # stale ledger.  The run continues (offline-safe) but says so.
+        print(f"[cycle] git pull skipped ({exc!r})")
 
 
 def _run(script):
@@ -36,7 +39,10 @@ def _run(script):
 
 
 def _count_today(logger, session_name):
-    today = date.today().isoformat()
+    # UTC date: internal standard across machines.  The old date.today()
+    # (local, EAT+3) drifted from the UTC logged_at stamps after 21:00 EAT
+    # and silently undercounted the session's picks.
+    today = datetime.now(timezone.utc).date().isoformat()
     return sum(
         1 for rec in logger._read_all()
         if rec.get("session") == session_name
@@ -47,12 +53,16 @@ def _count_today(logger, session_name):
 def _load_state():
     try:
         s = json.loads(STATE_PATH.read_text(encoding="utf-8-sig"))
-        if isinstance(s, dict) and s.get("date") == date.today().isoformat():
+        if isinstance(s, dict) and s.get("date") == _utc_today():
             return s
     except (OSError, json.JSONDecodeError):
         pass
-    return {"date": date.today().isoformat(), "session": "",
+    return {"date": _utc_today(), "session": "",
             "announced": False, "exhausted": False}
+
+
+def _utc_today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 def _save_state(s):
@@ -61,12 +71,13 @@ def _save_state(s):
 
 
 def main():
+    force_utf8_stdio()
     _pull()
     session = detect()
     lg = BetLogger()
     state = _load_state()
     if state.get("session") != session.name:
-        state = {"date": date.today().isoformat(), "session": session.name,
+        state = {"date": _utc_today(), "session": session.name,
                  "announced": False, "exhausted": False}
         _save_state(state)
 

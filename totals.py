@@ -16,14 +16,13 @@ from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from odds.comparator import BetOpportunity, OddsComparator, Selection, OddsQuote
 from slips.generator import Slip, SlipLeg
+from config.settings import BET_TARGET_PLATFORMS
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
 from utils.session import EAT, clock_line, detect, next_start_eat
+from utils.term import force_utf8_stdio
 
-PLATFORMS: list[str] = [
-    "SportyBet", "Betika", "1xBet", "BetPawa",
-    "MozzartBet", "LuckyPari", "BetJam", "WekaWin",
-]
+PLATFORMS: list[str] = BET_TARGET_PLATFORMS
 SUSPECT_RATIO = 1.20
 N_PICKS = 8
 _CACHE = Path("data") / "feed_cache.json"
@@ -103,6 +102,7 @@ def _tier(prob, ev):
 
 
 def main():
+    force_utf8_stdio()
     session = detect()
     tg = TelegramNotifier()
     logger = BetLogger()

@@ -37,19 +37,23 @@ _CREDS = _load_credentials()
 # Platforms
 # --------------------------------------------------------------------------- #
 
-PLACEABLE_BOOKS: list[str] = [
-    "SportyBet",
-    "Betika",
+# The five apps bets are actually placed on (owner, Kenya).  Every other book
+# in the feed (Pinnacle, Betfair, 1xBet, ...) is a PRICE-DISCOVERY source
+# only: it may set reference odds and consensus, it is never a bet target.
+BET_TARGET_PLATFORMS: list[str] = [
     "BetPawa",
-    "1xBet",
+    "Betika",
+    "LuckyPari",
+    "WekaWin",
+    "BetJam",
 ]
 
-PRIORITY_BOOKS: list[str] = [
-    "SportyBet",
-    "Betika",
-    "BetPawa",
-    "1xBet",
-]
+# 8 picks per session across 5 platforms: the 3 best-performing platforms
+# (ranked from the ledger) get 2 picks each, the other 2 get 1
+# (see smart_picks.platform_slots).  Until the ledger has >= 10 settled bets
+# per platform, the default order above is used.
+PLACEABLE_BOOKS: list[str] = list(BET_TARGET_PLATFORMS)
+PRIORITY_BOOKS: list[str] = list(BET_TARGET_PLATFORMS)
 
 SUPPORTED_BOOKS: list[str] = [
     "SportyBet", "Betika", "BetPawa", "Betfalme", "WekaWin", "BetJam",
@@ -308,6 +312,75 @@ class ActionSettings:
 
 
 # --------------------------------------------------------------------------- #
+# HIT-RATE lane + model blending + calibration
+# --------------------------------------------------------------------------- #
+
+#: Master switch for the [HIT] lane in smart_picks.py.  True = the 8-pick
+#: session leads with every pick that qualifies (probability >= 0.80, odds
+#: <= 1.60), remainder filled by the existing WINNER/TOTALS lanes.
+HIT_RATE_MODE: bool = True
+
+
+@dataclass(frozen=True)
+class HitRateSettings:
+    """[HIT] lane — the high-win-rate goal, stated honestly.
+
+    A pick qualifies ONLY when its (blended) win probability is >= min_prob
+    AND the best available price is <= max_odds.  Eligible markets: the
+    low-scoring/high-scoring totals ``lines``, moneylines whose consensus is
+    strong, and double chance (derived from the 1X2 consensus).
+
+    HONESTY CONTRACT: a high hit rate is NOT a profit guarantee.  At odds
+    1.10-1.55 a 60-70% real-world hit rate still loses money; the ledger
+    post-mortem already showed the 1.20-1.60 odds band bleeding at a 60%
+    win rate.  Every pick prints its TRUE probability, and CLV — not the
+    hit rate — decides whether this lane has real edge.
+    """
+
+    min_prob: float = 0.80
+    max_odds: float = 1.60
+    lines: tuple[float, ...] = (0.5, 1.5, 4.5, 5.5)
+    stake_mult: float = 1.0  # x base stake for HIT picks
+
+    def __post_init__(self) -> None:
+        if not 0.5 <= self.min_prob < 1.0:
+            raise ValueError("min_prob must lie in [0.5, 1).")
+        if not 1.0 < self.max_odds <= 2.0:
+            raise ValueError("max_odds must lie in (1.0, 2.0] for the HIT lane.")
+        for line in self.lines:
+            if line <= 0 or abs((line * 2) % 2 - 1) > 1e-9:
+                raise ValueError("lines must be positive half lines (x.5).")
+        if self.stake_mult <= 0.0:
+            raise ValueError("stake_mult must be positive.")
+
+
+#: Team-strength model blending (models/strength_engine.py).  When BOTH teams
+#: of a match exist in data/history.csv the pick probability becomes
+#:     p = MODEL_BLEND_MODEL_WEIGHT * model + (1 - weight) * consensus
+#: 0.0 = pure consensus (old behaviour), 0.4 = measured default, 1.0 = pure
+#: model.  Blended picks are labelled [MODEL] in Telegram.
+MODEL_BLEND_MODEL_WEIGHT: float = 0.4
+
+
+@dataclass(frozen=True)
+class CalibrationSettings:
+    """Confidence calibration (utils/calibration.py).
+
+    shrinkage_factor: 1.0 = trust stated probabilities as-is (default).
+    Values below 1.0 pull every stated probability toward 0.5 before any
+    lane/tier logic sees it:  p' = 0.5 + (p - 0.5) * shrinkage_factor
+    (e.g. 0.8 turns a stated 80% into 74%).  Set it ONLY from evidence in
+    the calibration report (``python -m utils.calibration``), never by feel.
+    """
+
+    shrinkage_factor: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.shrinkage_factor <= 1.0:
+            raise ValueError("shrinkage_factor must lie in (0, 1].")
+
+
+# --------------------------------------------------------------------------- #
 # Singletons — credentials injected from data/credentials.json
 # --------------------------------------------------------------------------- #
 
@@ -330,6 +403,8 @@ RISK_SETTINGS = RiskSettings()
 SURESLIP_SETTINGS = SureSlipSettings()
 STAKING_SETTINGS = StakingSettings()
 ACTION_SETTINGS = ActionSettings()
+HIT_RATE_SETTINGS = HitRateSettings()
+CALIBRATION_SETTINGS = CalibrationSettings()
 
 DEFAULT_UNIT_SIZE: float = STAKING_SETTINGS.unit_size
 MAX_ACCA_LEGS: int = RISK_SETTINGS.max_acca_legs

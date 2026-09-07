@@ -3,3 +3,5 @@ __pycache__/
 .venv/
 data/credentials.json
 .DS_Store
+data/*.lock
+

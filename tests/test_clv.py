@@ -12,6 +12,7 @@ import pytest
 
 import utils.clv as clv
 from odds.comparator import OddsQuote, Selection
+from slips.generator import Slip, SlipLeg
 from utils.clv import (
     closing_metrics,
     clv_summary_line,
@@ -80,9 +81,22 @@ def _pending_record(bet_id: str, odds: float = 2.20) -> dict:
 # --------------------------------------------------------------------- #
 
 
-def test_closing_metrics_empty() -> None:
+def test_closing_metrics_empty_is_none_not_zero() -> None:
+    # Honesty contract: missing data is None, never 0.0 (0 would fake a
+    # perfectly-neutral CLV reading).
     m = closing_metrics([])
-    assert m == {"clv_legs": 0, "beat_close_rate": 0.0, "avg_clv": 0.0}
+    assert m == {"clv_legs": 0, "beat_close_rate": None, "avg_clv": None}
+
+
+def test_clv_metrics_from_values() -> None:
+    from utils.clv import clv_metrics_from_values
+
+    assert clv_metrics_from_values([]) == {
+        "clv_legs": 0, "beat_close_rate": None, "avg_clv": None}
+    m = clv_metrics_from_values([0.10, -0.05, 0.05])
+    assert m["clv_legs"] == 3
+    assert m["beat_close_rate"] == pytest.approx(2 / 3, abs=1e-4)
+    assert m["avg_clv"] == pytest.approx(1 / 30, abs=1e-4)
 
 
 def test_closing_metrics_arithmetic() -> None:
@@ -177,6 +191,65 @@ def test_snapshot_ignores_settled_bets(
     rec = _pending_record("BET-A")
     rec["status"] = "WIN"
     assert snapshot_closing([rec], path=path) == []
+
+
+def test_attach_closing_odds_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from utils.clv import attach_closing_odds, latest_closing_map
+
+    # A closing snapshot exists for this leg: placed 2.20 vs close 2.00.
+    (tmp_path / "closing.jsonl").write_text(
+        '{"match_id": "EVT123", "market": "1X2", "selection": "Home", '
+        '"closing_odds": 2.00}\n',
+        encoding="utf-8",
+    )
+    assert latest_closing_map(tmp_path / "closing.jsonl") == {
+        ("EVT123", "1X2", "Home"): 2.00}
+
+    ledger = BetLogger(path=tmp_path / "bets.jsonl")
+    ledger.log_slip(
+        Slip(slip_type="SINGLE", legs=[SlipLeg(
+            match_id="EVT123", match_label="A vs B", league="L",
+            market="1X2", selection="Home", book="Pinnacle",
+            decimal_odds=2.20, model_prob=0.5, edge=0.045, ev_per_unit=0.10,
+        )], stake_units=1.0),
+    )
+    n = attach_closing_odds(ledger, path=tmp_path / "closing.jsonl")
+    assert n == 1
+    rec = ledger._read_all()[0]
+    leg = rec["legs"][0]
+    assert leg["closing_odds"] == pytest.approx(2.00)
+    assert leg["clv"] == pytest.approx(2.20 / 2.00 - 1.0, abs=1e-6)
+    # metrics() reads CLV from the ledger legs (pending included -- CLV is a
+    # pre-result signal).
+    m = ledger.metrics()
+    assert m["clv_legs"] == 1
+    assert m["avg_clv"] == pytest.approx(0.10, abs=1e-6)
+
+    # Idempotent: a second pass never overwrites or double-counts.
+    assert attach_closing_odds(ledger, path=tmp_path / "closing.jsonl") == 0
+    assert ledger.metrics()["clv_legs"] == 1
+
+
+def test_attach_closing_odds_missing_data_stays_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from utils.clv import attach_closing_odds
+
+    (tmp_path / "closing.jsonl").write_text("", encoding="utf-8")
+    ledger = BetLogger(path=tmp_path / "bets.jsonl")
+    ledger.log_slip(
+        Slip(slip_type="SINGLE", legs=[SlipLeg(
+            match_id="EVT999", match_label="C vs D", league="L",
+            market="1X2", selection="Home", book="Pinnacle",
+            decimal_odds=1.90, model_prob=0.5, edge=0.0, ev_per_unit=0.0,
+        )], stake_units=1.0),
+    )
+    assert attach_closing_odds(ledger, path=tmp_path / "closing.jsonl") == 0
+    # No snapshot exists at all: nothing is stamped, nothing faked.
+    leg = ledger._read_all()[0]["legs"][0]
+    assert "closing_odds" not in leg and "clv" not in leg
 
 
 def test_logger_metrics_includes_clv_keys(tmp_path: Path) -> None:

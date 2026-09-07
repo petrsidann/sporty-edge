@@ -110,11 +110,12 @@ class TelegramNotifier:
                 return 200 <= resp.status < 300
         except urllib.error.HTTPError as exc:
             # Telegram always returns a JSON body explaining the problem.
+            detail = ""
             try:
                 detail = exc.read().decode("utf-8", errors="replace")
                 description = json.loads(detail).get("description", detail)
             except Exception:
-                description = detail[:200] if "detail" in dir() else ""
+                description = detail[:200]
             print(f"  !! Telegram HTTP {exc.code}: {description}")
             print("     Fix hints: 401 = wrong token | 403 = press START on the bot")
             print("     in Telegram first | 400 chat not found = wrong chat id.")

@@ -17,14 +17,13 @@ from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from odds.comparator import BetOpportunity, OddsComparator
 from slips.generator import Slip, SlipLeg
+from config.settings import BET_TARGET_PLATFORMS
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
 from utils.session import EAT, clock_line, detect, next_start_eat
+from utils.term import force_utf8_stdio
 
-PLATFORMS: list[str] = [
-    "SportyBet", "Betika", "1xBet", "BetPawa",
-    "MozzartBet", "LuckyPari", "BetJam", "WekaWin",
-]
+PLATFORMS: list[str] = BET_TARGET_PLATFORMS
 SUSPECT_RATIO = 1.20
 N_PICKS = 8
 MIN_ODDS = 1.10
@@ -122,6 +121,7 @@ def _tier(prob, ev):
 
 
 def main():
+    force_utf8_stdio()
     base_stake = _flag(sys.argv, "--stake", 0.5)
     platforms = PLATFORMS
     session = detect()
@@ -171,7 +171,7 @@ def main():
     bankroll = Bankroll()
     placed = []
     for i, o in enumerate(picks, start=1):
-        platform = platforms[i - 1]
+        platform = platforms[(i - 1) % len(platforms)]  # 5 targets, 8 picks
         label, mult = _tier(o.selection.model_probability, o.ev_per_unit)
         eff = round(base_stake * mult, 2)
         slip = Slip(slip_type="SINGLE", legs=[SlipLeg.from_opportunity(o)], stake_units=eff)

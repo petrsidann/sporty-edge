@@ -25,14 +25,13 @@ from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from odds.comparator import BetOpportunity, OddsComparator
 from slips.generator import Slip, SlipLeg
+from config.settings import BET_TARGET_PLATFORMS
 from utils.bankroll import Bankroll
 from utils.logger import BetLogger
 from utils.session import EAT, clock_line, detect, session_window
+from utils.term import force_utf8_stdio
 
-PLATFORMS: list[str] = [
-    "SportyBet", "Betika", "1xBet", "BetPawa",
-    "MozzartBet", "LuckyPari", "BetJam", "WekaWin",
-]
+PLATFORMS: list[str] = BET_TARGET_PLATFORMS
 SUSPECT_RATIO = 1.20
 LEGS_PER_SLIP = 2
 ODDS_CAP = 8.0
@@ -185,6 +184,7 @@ def _render_sheet(slip, platform: str, bet_id: str, kmap: dict) -> str:
 
 
 def main() -> None:
+    force_utf8_stdio()
     stake = _flag(sys.argv, "--stake", 0.25)
     n_slips = int(_flag(sys.argv, "--slips", len(PLATFORMS)))
     n_slips = max(1, min(n_slips, len(PLATFORMS)))

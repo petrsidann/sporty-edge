@@ -4,8 +4,14 @@ settle_auto.py - non-interactive settlement (for cron + humans in a rush).
     python settle_auto.py
 
 Pulls the ledger from GitHub, fetches real final scores, auto-settles every
-slip it can judge (moneyline / 1X2 / totals).  Ambiguous slips stay PENDING
-for python settle.py (interactive).
+slip it can judge (moneyline / 1X2 / totals / double chance).  Ambiguous
+slips stay PENDING for python settle.py (interactive).
+
+CLV: before judging, legs kicking off within the closing window get their
+final pre-kickoff price recorded (utils/clv.snapshot_closing -- the feed
+stops listing prices after kickoff, so this snapshot IS the closing line).
+After judging, closing_odds and clv are attached onto every ledger leg
+(clv = taken_odds / closing_odds - 1; missing data stays None, never 0).
 """
 
 from __future__ import annotations
@@ -13,9 +19,9 @@ from __future__ import annotations
 import json
 import subprocess
 import urllib.request
-from datetime import datetime, timezone
 
 from config.settings import FEED_SETTINGS
+from utils.term import force_utf8_stdio
 
 
 def _pull():
@@ -48,6 +54,7 @@ def _get(url: str):
 
 
 def main() -> None:
+    force_utf8_stdio()
     print("=" * 60)
     print("  settle_auto - final scores -> automatic settlement")
     print("=" * 60)
@@ -58,6 +65,7 @@ def main() -> None:
     pending = lg.pending()
     if not pending:
         print("  Nothing pending.")
+        _clv_attach(lg)
         return
 
     titles = {str(l.get("league") or "").strip()
@@ -92,6 +100,16 @@ def main() -> None:
                 except (TypeError, ValueError):
                     continue
 
+    # ---- CLV: capture the closing line for legs near kickoff -------------- #
+    # Runs BEFORE settlement: only pre-kickoff events still carry prices, and
+    # only sports with an event inside the closing window are refreshed.
+    try:
+        from utils.clv import snapshot_closing
+
+        snapshot_closing(lg.pending())
+    except Exception as exc:  # CLV is instrumentation; never kill settlement
+        print(f"  CLV: closing snapshot skipped ({exc!r})")
+
     auto = 0
     for rec in pending:
         results = []
@@ -110,6 +128,17 @@ def main() -> None:
                     results.append("WIN" if a > h else "LOSS")
                 elif sel == "Draw":
                     results.append("WIN" if h == a else "LOSS")
+                else:
+                    results.append(None)
+            elif m.startswith("DC"):
+                # Double chance: 1X = home or draw, X2 = draw or away,
+                # 12 = not a draw.  Required for the [HIT] lane to settle.
+                if sel == "1X":
+                    results.append("WIN" if h >= a else "LOSS")
+                elif sel == "X2":
+                    results.append("WIN" if a >= h else "LOSS")
+                elif sel == "12":
+                    results.append("WIN" if h != a else "LOSS")
                 else:
                     results.append(None)
             elif m.startswith("O/U"):
@@ -133,11 +162,27 @@ def main() -> None:
             lg.settle(rec["bet_id"], "LOSS"); auto += 1
             print(f"  {rec['bet_id']} -> LOSS (auto)")
 
+    _clv_attach(lg)  # stamp closing_odds + clv onto every ledger leg
     m = lg.metrics()
     print(f"\n  auto-settled {auto} | metrics: {m}")
+    if m.get("clv_legs"):
+        print(f"  CLV: beat close {m['beat_close_rate'] * 100:.0f}% | "
+              f"avg CLV {m['avg_clv'] * 100:+.2f}%")
     print("  Ambiguous slips (spreads etc.) stay pending for python settle.py")
     print('  Sync: git add data/bets.jsonl ; git commit -m "Auto settle" '
           '; git pull --rebase -X theirs origin main ; git push')
+
+
+def _clv_attach(lg) -> None:
+    """Attach closing_odds / clv onto ledger legs (best-effort)."""
+    try:
+        from utils.clv import attach_closing_odds
+
+        n = attach_closing_odds(lg)
+        if n:
+            print(f"  CLV: attached closing odds to {n} ledger leg(s).")
+    except Exception as exc:
+        print(f"  CLV: enrichment skipped ({exc!r})")
 
 
 if __name__ == "__main__":

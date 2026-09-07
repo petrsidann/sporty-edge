@@ -5,7 +5,7 @@ settle.py v3 - settlement that does the work itself.
 
 1. Pulls the latest ledger from GitHub (cloud-run bets live there).
 2. Fetches REAL final scores from the feed's /scores endpoint.
-3. Auto-settles every ML / 1X2 / O/U leg from the score; slips with all
+3. Auto-settles every ML / 1X2 / O/U / DC leg from the score; slips with all
    legs resolved settle automatically.  Anything ambiguous (spreads with
    unknown sign) is shown with the final score - one keystroke W/L/V.
 4. Prints your record.  This IS the correct-stats engine you asked for.
@@ -19,6 +19,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 from config.settings import FEED_SETTINGS
+from utils.term import force_utf8_stdio
 
 _VALID = {"w": "WIN", "l": "LOSS", "v": "VOID"}
 
@@ -105,6 +106,15 @@ def _leg_result(leg: dict, score: dict) -> str | None:
             return "WIN" if a > h else "LOSS"
         if sel == "Draw":
             return "WIN" if h == a else "LOSS"
+    if m.startswith("DC"):
+        # Double chance: 1X = home or draw, X2 = draw or away, 12 = not a
+        # draw.  Required so [HIT]-lane double-chance legs auto-settle.
+        if sel == "1X":
+            return "WIN" if h >= a else "LOSS"
+        if sel == "X2":
+            return "WIN" if a >= h else "LOSS"
+        if sel == "12":
+            return "WIN" if h != a else "LOSS"
     if m.startswith("O/U"):
         try:
             line = float(m.split()[-1])
@@ -129,6 +139,7 @@ def _age_hours(ts: str) -> float:
 
 
 def main() -> None:
+    force_utf8_stdio()
     print("=" * 64)
     print("  settle.py v3 - auto-settlement from real final scores")
     print("=" * 64)
@@ -191,6 +202,9 @@ def main() -> None:
     print("=" * 64)
     m = lg.metrics()
     print("  Metrics:", m)
+    if m.get("clv_legs"):
+        print(f"  CLV: beat close {m['beat_close_rate'] * 100:.0f}% | "
+              f"avg CLV {m['avg_clv'] * 100:+.2f}%")
     n = int(m.get("settled", 0))
     print(f"  {n}/25 settled toward the first tier promotion."
           if n < 25 else "  Tier gate reached - stakes scale next run.")

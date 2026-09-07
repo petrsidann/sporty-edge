@@ -84,8 +84,25 @@ def _append_records(records: list[dict], path: str | Path = CLOSING_PATH) -> Non
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-def closing_metrics(records: list[dict] | None = None) -> dict[str, float]:
-    """beat_close_rate and avg_clv over all recorded legs (0.0 when empty)."""
+def clv_metrics_from_values(clvs: list[float]) -> dict[str, float | int | None]:
+    """beat_close_rate / avg_clv over given CLV values.
+
+    Missing data returns None -- NEVER 0.  A 0.0 avg_clv with no samples
+    would fake a perfectly-neutral reading and silently feed dashboards.
+    """
+    values = [float(c) for c in clvs if isinstance(c, (int, float))]
+    if not values:
+        return {"clv_legs": 0, "beat_close_rate": None, "avg_clv": None}
+    beats = sum(1 for c in values if c > 0.0)
+    return {
+        "clv_legs": len(values),
+        "beat_close_rate": round(beats / len(values), 4),
+        "avg_clv": round(sum(values) / len(values), 4),
+    }
+
+
+def closing_metrics(records: list[dict] | None = None) -> dict[str, float | int | None]:
+    """beat_close_rate and avg_clv over all recorded legs (None when empty)."""
     if records is None:
         records = read_closing_records(CLOSING_PATH)
     clvs = [
@@ -93,14 +110,79 @@ def closing_metrics(records: list[dict] | None = None) -> dict[str, float]:
         for r in records
         if isinstance(r.get("clv"), (int, float))
     ]
-    if not clvs:
-        return {"clv_legs": 0, "beat_close_rate": 0.0, "avg_clv": 0.0}
-    beats = sum(1 for c in clvs if c > 0.0)
-    return {
-        "clv_legs": len(clvs),
-        "beat_close_rate": round(beats / len(clvs), 4),
-        "avg_clv": round(sum(clvs) / len(clvs), 4),
-    }
+    return clv_metrics_from_values(clvs)
+
+
+def latest_closing_map(
+    path: str | Path = CLOSING_PATH,
+) -> dict[tuple[str, str, str], float]:
+    """(match_id, market, selection) -> most recent recorded closing odds.
+
+    The closing snapshot (snapshot_closing) records a leg's pre-kickoff
+    price once; this map lets settlement attach that price onto the ledger
+    legs.  Later records win (they are the closer-to-kickoff readings).
+    """
+    out: dict[tuple[str, str, str], float] = {}
+    for rec in read_closing_records(path):
+        closing = rec.get("closing_odds")
+        if not isinstance(closing, (int, float)) or closing <= 1.0:
+            continue
+        key = (
+            str(rec.get("match_id") or ""),
+            str(rec.get("market") or ""),
+            str(rec.get("selection") or ""),
+        )
+        out[key] = float(closing)
+    return out
+
+
+def attach_closing_odds(
+    logger,  # BetLogger (imported lazily to avoid a circular import)
+    records: list[dict] | None = None,
+    path: str | Path = CLOSING_PATH,
+) -> int:
+    """Write closing_odds and clv onto ledger legs, in place.
+
+    For every leg of every record: the closing price comes from the most
+    recent pre-kickoff snapshot (data/closing.jsonl); clv is then
+        clv = taken_odds / closing_odds - 1
+    Legs with no snapshot keep closing_odds = None and clv = None -- missing
+    data is never reported as 0.  Returns the number of legs updated.
+    """
+    from utils.filelock import exclusive_lock
+
+    cmap = latest_closing_map(path)
+    if not cmap:
+        return 0
+    updated = 0
+    with exclusive_lock(logger.path):
+        fresh = logger._read_all()
+        for rec in fresh:
+            for leg in rec.get("legs", []):
+                if not isinstance(leg, dict):
+                    continue
+                if leg.get("closing_odds") is not None:
+                    continue  # already enriched -- never overwrite
+                key = (
+                    str(leg.get("match_id") or ""),
+                    str(leg.get("market") or ""),
+                    str(leg.get("selection") or ""),
+                )
+                closing = cmap.get(key)
+                if closing is None:
+                    leg["closing_odds"] = None
+                    leg["clv"] = None
+                    continue
+                leg["closing_odds"] = round(closing, 4)
+                taken = leg.get("decimal_odds")
+                if isinstance(taken, (int, float)) and taken > 1.0:
+                    leg["clv"] = round(float(taken) / closing - 1.0, 6)
+                else:
+                    leg["clv"] = None
+                updated += 1
+        if updated:
+            logger._write_all(fresh)
+    return updated
 
 
 def _closing_price_map(
@@ -231,11 +313,14 @@ def snapshot_closing(
     return new_records
 
 
-def clv_summary_line(metrics: dict[str, float]) -> str:
+def clv_summary_line(metrics: dict[str, float | int | None]) -> str:
     """One human-readable line for the session summary / Telegram."""
-    if not metrics.get("clv_legs"):
+    legs = metrics.get("clv_legs") or 0
+    beat = metrics.get("beat_close_rate")
+    avg = metrics.get("avg_clv")
+    if not legs or beat is None or avg is None:
         return "CLV: no closing references recorded yet."
     return (
-        f"CLV: beat close {metrics['beat_close_rate'] * 100:.0f}% of "
-        f"{metrics['clv_legs']} leg(s) | avg CLV {metrics['avg_clv'] * 100:+.2f}%"
+        f"CLV: beat close {beat * 100:.0f}% of "
+        f"{legs} leg(s) | avg CLV {avg * 100:+.2f}%"
     )

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from collections import defaultdict
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -387,7 +388,29 @@ def main() -> None:
                         max_hours_ahead=WINDOW_HOURS,
                         markets="h2h,totals").collect()
     if not cands:
-        msg = ("[FAIL] feed returned zero events - run: python doctor.py")
+        # distinguish dead window (cache fresh) from real feed failure
+        cache_age_h = 99.0
+        try:
+            age = time.time() - CACHE.stat().st_mtime
+            cache_age_h = age / 3600.0
+        except OSError:
+            pass
+        if cache_age_h < 2.0:
+            # fetch worked; the 4h window is simply empty (dead hours)
+            ping = Path("data") / "last_empty_ping.txt"
+            now_ts = time.time()
+            last = 0.0
+            try:
+                last = float(ping.read_text().strip())
+            except (OSError, ValueError):
+                pass
+            print("no games start in the next 4h (dead hours) - quiet until supply returns")
+            if tg.is_configured and (now_ts - last) > 6 * 3600:
+                tg.send("No games start in the next 4h window (global dead hours). "
+                        "Next session resumes automatically.")
+                ping.write_text(str(now_ts))
+            return
+        msg = "[FAIL] feed fetch failed (keys/credits?) - run: python doctor.py"
         print(msg)
         if tg.is_configured:
             tg.send(msg)

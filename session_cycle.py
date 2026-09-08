@@ -147,7 +147,7 @@ def main() -> None:
     picks_before = n
     errors = 0
     if n < target:
-        _run("smart_picks.py")
+        _run("board.py")
         n = _count_today(lg, session.name)
     picks_added = max(0, n - picks_before)
 

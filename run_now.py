@@ -38,7 +38,7 @@ def main() -> None:
     print("=" * 66)
 
     _run("settle_auto.py")      # 1. score what finished
-    _run("smart_picks.py")      # 2. winner-lane + totals-lane picks -> Telegram
+    _run("board.py")      # 2. winner-lane + totals-lane picks -> Telegram
 
     print("\n" + "=" * 66)
     print("  DONE. Place what clears the price floors (click TEAM NAMES).")

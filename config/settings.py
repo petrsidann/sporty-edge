@@ -311,10 +311,25 @@ class ActionSettings:
 # HIT-RATE lane + model blending + calibration
 # --------------------------------------------------------------------------- #
 
-#: Master switch for the [HIT] lane in smart_picks.py.  True = the 8-pick
-#: session leads with every pick that qualifies (probability >= 0.80, odds
-#: <= 1.60), remainder filled by the existing WINNER/TOTALS lanes.
-HIT_RATE_MODE: bool = True
+#: Master switch for the [HIT] lane in smart_picks.py.  True = the session
+#: leads with every pick that qualifies (probability >= 0.80, odds <= 1.60),
+#: remainder filled by the existing WINNER/TOTALS lanes.
+#: Phase 1 (concentrated-value pivot): False = the HIT lane is REMOVED from
+#: selection.  The ledger post-mortem (67 settled bets) showed the 1.20-1.60
+#: odds band bleeding at -44.7% ROI; `_hit_candidates`/`_dc_candidates`
+#: survive only as pure helpers for tests/reporting — main() never selects
+#: from them while this is False.
+HIT_RATE_MODE: bool = False
+
+#: Phase 1a: the odds-band gate.  A pick is accepted ONLY when its taken
+#: price (the decimal odds recorded on the ledger leg) lies inside
+#: [MIN_ODDS_TAKEN, MAX_ODDS_TAKEN] inclusive.  The ledger post-mortem
+#: showed 1.60-2.50 as the only profitable band (+9.8% ROI over 25 bets)
+#: and 1.20-1.60 as the worst (-44.7% over 12 bets); 1.55-2.60 brackets the
+#: profitable band with a little room for price movement between scan and
+#: placement.  This is the implementation of "concentrated value".
+MIN_ODDS_TAKEN: float = 1.55
+MAX_ODDS_TAKEN: float = 2.60
 
 
 @dataclass(frozen=True)

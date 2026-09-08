@@ -16,4 +16,7 @@ def _run(script: str) -> None:
 if __name__ == "__main__":
     _run("fetch_history.py")        # soccer: 6 leagues, 3 seasons
     _run("fetch_more_history.py")   # tennis, NBA, NFL, MLB
+    # Phase 2c: refresh the credits pool snapshot once per day so the
+    # session_cycle summary can report "pool ~N across K keys".
+    _run("key_audit.py")
     print("\nHistory refresh complete. Workflow commits data/ automatically.")

@@ -157,6 +157,80 @@ def test_shrink_helper_matches_calibration_shrink() -> None:
 
 
 # --------------------------------------------------------------------- #
+# Phase 1: odds-band gate + flat stakes (concentrated-value pivot)
+# --------------------------------------------------------------------- #
+
+def test_odds_band_gate_bounds() -> None:
+    from smart_picks import _in_odds_band
+    assert _in_odds_band(1.55)          # inclusive lower edge
+    assert _in_odds_band(2.60)          # inclusive upper edge
+    assert _in_odds_band(1.90)          # the proven band
+    assert not _in_odds_band(1.54)      # the -44.7% band stays shut
+    assert not _in_odds_band(1.10)
+    assert not _in_odds_band(2.61)
+
+
+def test_settings_odds_band_matches_ledger_finding() -> None:
+    from config.settings import MAX_ODDS_TAKEN, MIN_ODDS_TAKEN
+    assert MIN_ODDS_TAKEN == 1.55
+    assert MAX_ODDS_TAKEN == 2.60
+
+
+def test_tier_is_flat_for_every_probability() -> None:
+    from smart_picks import _tier
+    for prob in (0.10, 0.55, 0.65, 0.80, 0.95):
+        assert _tier(prob) == ("FLAT", 1.00)
+
+
+def test_hit_lane_mode_is_disabled() -> None:
+    # The ledger proved the sub-1.60 band bleeds (-44.7%); the HIT lane
+    # must never come back by accident.
+    from config.settings import HIT_RATE_MODE
+    assert HIT_RATE_MODE is False
+
+
+# --------------------------------------------------------------------- #
+# Phase 2: the Telegram pick-message contract
+# --------------------------------------------------------------------- #
+
+def _contract_msg(**overrides):
+    from smart_picks import build_pick_message
+    kwargs = dict(lane="WINNER", model_tag=True, platform="BetPawa",
+                  label="FLAT", match_label="Arsenal vs Everton · Tue 21:00 EAT",
+                  kickoff_eat="Tue 21:00 EAT", settle_eat="23:03 EAT",
+                  session_name="S3", pick="Arsenal", win_prob=0.62,
+                  take_odds=1.90, floor_odds=1.84, stake=1.00,
+                  bet_id="B-123")
+    kwargs.update(overrides)
+    return build_pick_message(**kwargs)
+
+
+def test_pick_message_carries_the_full_telegram_contract() -> None:
+    msg = _contract_msg()
+    assert "Arsenal vs Everton" in msg              # match
+    assert "Tue 21:00 EAT" in msg                   # kickoff EAT
+    assert "settles ~23:03 EAT" in msg              # settle-by EAT
+    assert "PICK: Arsenal" in msg                   # exact pick
+    assert "place if app >= 1.84" in msg            # price floor
+    assert "Win prob 62%" in msg                    # TRUE win probability
+    assert "Stake 1.00u" in msg                     # stake
+    assert "B-123" in msg                           # bet id
+    assert "credits ~" in msg                       # credits remaining
+    assert "guarantee" not in msg.lower()           # no guaranteed language
+
+
+def test_pick_message_flags_derived_double_chance() -> None:
+    msg = _contract_msg(lane="DC", pick="1X", derived_dc=True)
+    assert "confirm the real DC price on the app" in msg
+
+
+def test_pick_message_credits_line_is_honest_when_unknown() -> None:
+    # No API call in this process -> credits show as '~?' (never invented).
+    msg = _contract_msg()
+    assert "credits ~?" in msg
+
+
+# --------------------------------------------------------------------- #
 # Platform rotation: 3 x 2 picks + 2 x 1, ledger-ranked
 # --------------------------------------------------------------------- #
 

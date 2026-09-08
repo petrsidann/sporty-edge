@@ -68,6 +68,19 @@ _CFG_MAX_HOURS = float(getattr(FEED_SETTINGS, "max_hours_ahead", 12.0))
 
 _EAT = timezone(timedelta(hours=3))  # Nairobi time, shown on every sheet
 
+# Phase 2a: last-seen API credits ("x-requests-remaining"), updated on every
+# successful API call in this process.  Read via get_last_credits().
+_LAST_CREDITS: int | None = None
+
+
+def get_last_credits() -> int | None:
+    """Credits remaining from the most recent successful API response.
+
+    Returns None when no API call has succeeded yet in this process
+    (e.g. the feed ran entirely from cache).
+    """
+    return _LAST_CREDITS
+
 
 def _parse_iso(ts: str) -> datetime | None:
     """Parse an ISO8601 timestamp ('Z' suffix tolerated); None on failure."""
@@ -143,12 +156,19 @@ class OddsApiFeed:
         return tuple(hot)
 
     def _get(self, path: str, params: dict[str, str]) -> tuple[object, dict[str, str]]:
+        global _LAST_CREDITS
         query = urllib.parse.urlencode(params)
         url = f"{_API_BASE}{path}?{query}"
         req = urllib.request.Request(url, headers={"User-Agent": "sporty-edge/1.0"})
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             body = resp.read().decode("utf-8")
-            return json.loads(body), dict(resp.headers)
+            headers = dict(resp.headers)
+        # Phase 2a: track credits on EVERY successful call (sports, odds...).
+        try:
+            _LAST_CREDITS = int(float(headers.get("x-requests-remaining", "")))
+        except (TypeError, ValueError):
+            pass  # header absent/unparseable: keep the previous value
+        return json.loads(body), headers
 
     # ------------------------------------------------------------------ #
 

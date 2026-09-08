@@ -1,5 +1,9 @@
-"""session_cycle.py - 30-min orchestrator. Min 10 picks, up to 25 when the
-board is fat. Sends a Telegram status EVERY cycle - silence is impossible."""
+"""session_cycle.py - 30-min orchestrator (Concentrated Value spec).
+Per-session targets 5/5/8/5 — min = cap = session.target (no surge to 25).
+Runs settle_auto + smart_picks, then sends ONE Telegram summary per cycle
+that always includes: picks added this cycle, session progress (n/target),
+and credits (last API response + daily key-audit pool). Heartbeat every
+cycle; one Telegram heartbeat per UTC day."""
 from __future__ import annotations
 
 import json
@@ -19,9 +23,35 @@ from utils.session import clock_line, detect
 from utils.heartbeat import Heartbeat
 
 STATE_PATH = Path("data") / "session_state.json"
-# Phase 1b: reduced targets (5/5/8/5) - concentrated value pivot
-TARGET_MIN = 5
-TARGET_MAX = 8
+CREDITS_LAST_PATH = Path("data") / "credits_last.json"
+CREDITS_SUMMARY_PATH = Path("data") / "credits_summary.json"
+
+
+def _credits_report() -> tuple[object, tuple[int, int] | None]:
+    """(credits, pool) for the cycle summary — Phase 2.
+
+    credits: get_last_credits() if THIS process called the feed (it does
+    not — smart_picks runs as a subprocess), else data/credits_last.json
+    written by smart_picks this cycle, else '?' (honest unknown).
+    pool: (alive, total_credits) from data/credits_summary.json — written
+    once per day by key_audit.py chained into update_history.py.
+    """
+    from feeds.oddsapi import get_last_credits
+    credits: object = get_last_credits()
+    if credits is None:
+        try:
+            d = json.loads(CREDITS_LAST_PATH.read_text(encoding="utf-8-sig"))
+            credits = int(d["credits"])
+        except (OSError, json.JSONDecodeError, KeyError, TypeError,
+                ValueError):
+            credits = "?"
+    pool: tuple[int, int] | None = None
+    try:
+        d = json.loads(CREDITS_SUMMARY_PATH.read_text(encoding="utf-8-sig"))
+        pool = (int(d["alive"]), int(d["total_credits"]))
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        pool = None
+    return credits, pool
 
 
 def _utc_today() -> str:
@@ -57,7 +87,7 @@ def _load_state() -> dict:
             return s
     except (OSError, json.JSONDecodeError):
         pass
-    return {"utc_date": _utc_today(), "session": "", "covered_ping": ""}
+    return {"utc_date": _utc_today(), "session": ""}
 
 
 def _save_state(s: dict) -> None:
@@ -84,8 +114,12 @@ def main() -> None:
     lg = BetLogger()
     state = _load_state()
     if state.get("session") != session.name:
+        # Keep the once-per-day flags (history refresh, calibration ping)
+        # across session boundaries — they are UTC-day-scoped, not session-
+        # scoped, and re-running them would waste API credits.
         state = {"utc_date": _utc_today(), "session": session.name,
-                 "covered_ping": ""}
+                 "history_date": state.get("history_date", ""),
+                 "calibration_date": state.get("calibration_date", "")}
         _save_state(state)
 
     # Daily data refresh (once per UTC day, flag in session_state.json).
@@ -107,33 +141,36 @@ def main() -> None:
     print(f"[cycle] {clock_line()}")
     _run("settle_auto.py")
 
+    # Phase 1b: min = cap = session.target (5/5/8/5). No surge to 25.
+    target = session.target
     n = _count_today(lg, session.name)
+    picks_before = n
     errors = 0
-    if n < TARGET_MAX:
+    if n < target:
         _run("smart_picks.py")
         n = _count_today(lg, session.name)
+    picks_added = max(0, n - picks_before)
 
+    # Phase 2b: ONE summary per cycle, always with picks added, progress
+    # and credits (+ daily pool total when the key audit has run).
     from notify.telegram import TelegramNotifier
     tg = TelegramNotifier()
+    credits, pool = _credits_report()
+    summary = (f"{'✅' if n >= target else '📋'} {session.emoji} {session.name}: "
+               f"+{picks_added} picks this cycle | progress {n}/{target} | "
+               f"credits ~{credits}")
+    if pool is not None:
+        summary += f" | pool ~{pool[1]} across {pool[0]} keys"
+    print(f"[cycle] {summary}")
     if tg.is_configured:
-        if n >= TARGET_MIN and state.get("covered_ping") != session.name:
-            tg.send(f"✅ {session.emoji} {session.name} covered - {n} picks live "
-                    f"(target met, board keeps topping up to {TARGET_MAX}).")
-            state["covered_ping"] = session.name
-            _save_state(state)
-        elif n < TARGET_MIN:
-            tg.send(f"📋 {session.emoji} {session.name}: {n}/{TARGET_MIN} picks so "
-                    f"far - next 30-min cycle adds more as games get listed.")
-        else:
-            tg.send(f"📋 {session.emoji} {session.name}: {n} picks live "
-                    f"(max {TARGET_MAX}). Settles arrive automatically.")
+        tg.send(summary)
 
     # Heartbeat: every cycle appends to heartbeat.log; one Telegram ping per UTC day.
     hb = Heartbeat()
     hb.tick(session_name=session.name, picks_so_far=n, errors=errors)
     hb.maybe_telegram(tg)
 
-    print(f"[cycle] done | picks {n} (min {TARGET_MIN}, max {TARGET_MAX})")
+    print(f"[cycle] done | picks {n} (min {target}, cap {target})")
 
 
 if __name__ == "__main__":

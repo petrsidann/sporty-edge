@@ -24,7 +24,7 @@ try:
 except Exception:
     pass
 
-from feeds.oddsapi import OddsApiFeed
+from feeds.oddsapi import OddsApiFeed, get_last_credits
 from notify.telegram import TelegramNotifier
 from config.settings import (
     CALIBRATION_SETTINGS,
@@ -608,7 +608,8 @@ def main() -> None:
                f"PICK: {_anchor(leg.market, leg.selection, leg.match_label)}\n"
                f"Win prob {prob:.0%} | take {leg.decimal_odds:.2f} | "
                f"place if app >= {floor}\n"
-               f"Stake {eff:.2f}u | {bet_id}")
+               f"Stake {eff:.2f}u | {bet_id}\n"
+               f"credits ~{get_last_credits()}")
         print(msg + "\n")
         if tg.is_configured:
             tg.send(msg)

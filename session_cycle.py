@@ -1,5 +1,6 @@
-"""session_cycle.py - 30-min orchestrator. Min 10 picks, up to 25 when the
-board is fat. Sends a Telegram status EVERY cycle - silence is impossible."""
+"""session_cycle.py - 30-min orchestrator. Target 5/5/8/5 (S1-S4).
+Sends a Telegram status EVERY cycle with picks added, session progress,
+and credits remaining. Silence is impossible."""
 from __future__ import annotations
 
 import json
@@ -14,6 +15,7 @@ try:
 except Exception:
     pass
 
+from feeds.oddsapi import get_last_credits
 from utils.logger import BetLogger
 from utils.session import clock_line, detect
 from utils.heartbeat import Heartbeat
@@ -95,25 +97,42 @@ def main() -> None:
     _run("settle_auto.py")
 
     n = _count_today(lg, session.name)
+    picks_before = n
     errors = 0
     if n < TARGET_MAX:
         _run("smart_picks.py")
         n = _count_today(lg, session.name)
 
+    picks_added = n - picks_before
+    credits = get_last_credits()
+    credits_str = f"~{credits}" if credits is not None else "n/a"
+
     from notify.telegram import TelegramNotifier
     tg = TelegramNotifier()
     if tg.is_configured:
+        # Phase 2b: ONE summary per cycle with picks added, session progress,
+        # and credits remaining.
         if n >= TARGET_MIN and state.get("covered_ping") != session.name:
-            tg.send(f"✅ {session.emoji} {session.name} covered - {n} picks live "
-                    f"(target met, board keeps topping up to {TARGET_MAX}).")
+            tg.send(
+                f"✅ {session.emoji} {session.name} covered - {n} picks live "
+                f"(target met, board keeps topping up to {TARGET_MAX}).\n"
+                f"picks added this cycle: {picks_added} | "
+                f"session: {n}/{session.target} | credits: {credits_str}"
+            )
             state["covered_ping"] = session.name
             _save_state(state)
         elif n < TARGET_MIN:
-            tg.send(f"📋 {session.emoji} {session.name}: {n}/{TARGET_MIN} picks so "
-                    f"far - next 30-min cycle adds more as games get listed.")
+            tg.send(
+                f"📋 {session.emoji} {session.name}: {n}/{TARGET_MIN} picks so "
+                f"far - next 30-min cycle adds more as games get listed.\n"
+                f"picks added this cycle: {picks_added} | credits: {credits_str}"
+            )
         else:
-            tg.send(f"📋 {session.emoji} {session.name}: {n} picks live "
-                    f"(max {TARGET_MAX}). Settles arrive automatically.")
+            tg.send(
+                f"📋 {session.emoji} {session.name}: {n} picks live "
+                f"(max {TARGET_MAX}). Settles arrive automatically.\n"
+                f"picks added this cycle: {picks_added} | credits: {credits_str}"
+            )
 
     # Heartbeat: every cycle appends to heartbeat.log; one Telegram ping per UTC day.
     hb = Heartbeat()

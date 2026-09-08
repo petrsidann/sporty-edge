@@ -68,6 +68,26 @@ _CFG_MAX_HOURS = float(getattr(FEED_SETTINGS, "max_hours_ahead", 12.0))
 
 _EAT = timezone(timedelta(hours=3))  # Nairobi time, shown on every sheet
 
+# Phase 2a: last-seen x-requests-remaining from the API, kept at module level
+# so that smart_picks / session_cycle can report credits without threading a
+# return value through every layer.
+_last_credits: int | None = None
+
+
+def get_last_credits() -> int | None:
+    """Return the last-seen ``x-requests-remaining`` value from The Odds API,
+    or ``None`` if no live request has been captured yet this process."""
+    return _last_credits
+
+
+def _set_last_credits(remaining: str) -> None:
+    """Record the last-seen credit header (internal helper)."""
+    global _last_credits
+    try:
+        _last_credits = int(remaining)
+    except (ValueError, TypeError):
+        _last_credits = None
+
 
 def _parse_iso(ts: str) -> datetime | None:
     """Parse an ISO8601 timestamp ('Z' suffix tolerated); None on failure."""
@@ -171,6 +191,7 @@ class OddsApiFeed:
                     },
                 )
                 remaining = headers.get("x-requests-remaining", "?")
+                _set_last_credits(remaining)  # Phase 2a: capture for reporting
                 label = f"key{i + 1}" if len(self.api_keys) > 1 else "key"
                 print(
                     f"    feed: {sport_key:<34} events={len(data):<4} "

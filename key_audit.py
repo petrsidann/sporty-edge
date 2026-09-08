@@ -1,8 +1,5 @@
-"""key_audit.py - tests every key, shows credits left on each.
-Phase 2c: also writes data/credits_summary.json with {alive, total_credits}
-so session_cycle can include the pool total in its Telegram summary."""
-import json
-import urllib.request
+"""key_audit.py - tests every key, shows credits left on each."""
+import json, urllib.request
 from pathlib import Path
 
 data = json.loads(Path("data/credentials.json").read_text(encoding="utf-8-sig"))
@@ -29,10 +26,3 @@ for i, k in enumerate(keys, start=1):
 
 print(f"\n  ALIVE: {alive}/{len(keys)} | total credits across pool: ~{total_credits}")
 print("  Replace dead keys in data/credentials.json (setup_credentials.py)")
-
-# Phase 2c: persist credits summary for session_cycle reporting.
-summary = {"alive": alive, "total_credits": total_credits}
-out = Path("data") / "credits_summary.json"
-out.parent.mkdir(parents=True, exist_ok=True)
-out.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-print(f"  wrote {out}: {summary}")

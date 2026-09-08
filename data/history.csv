@@ -1731,6 +1731,563 @@ date,league,home_team,away_team,home_goals,away_goals
 2025-05-17,Ligue 1,FC Nantes,Montpellier HSC,3,0
 2025-05-17,Ligue 1,Racing Club de Lens,AS Monaco FC,4,0
 2025-05-17,Ligue 1,Paris Saint-Germain FC,AJ Auxerre,3,1
+2024-08-09,EFL Championship,Blackburn Rovers FC,Derby County FC,4,2
+2024-08-09,EFL Championship,Preston North End FC,Sheffield United FC,0,2
+2024-08-10,EFL Championship,Cardiff City FC,Sunderland AFC,0,2
+2024-08-10,EFL Championship,Hull City AFC,Bristol City FC,1,1
+2024-08-10,EFL Championship,Leeds United FC,Portsmouth FC,3,3
+2024-08-10,EFL Championship,Middlesbrough FC,Swansea City AFC,1,0
+2024-08-10,EFL Championship,Millwall FC,Watford FC,2,3
+2024-08-10,EFL Championship,Oxford United FC,Norwich City FC,2,0
+2024-08-10,EFL Championship,Queens Park Rangers FC,West Bromwich Albion FC,1,3
+2024-08-10,EFL Championship,Stoke City FC,Coventry City FC,1,0
+2024-08-11,EFL Championship,Sheffield Wednesday FC,Plymouth Argyle FC,4,0
+2024-08-12,EFL Championship,Luton Town FC,Burnley FC,1,4
+2024-08-16,EFL Championship,Coventry City FC,Oxford United FC,3,2
+2024-08-17,EFL Championship,Derby County FC,Middlesbrough FC,1,0
+2024-08-17,EFL Championship,Portsmouth FC,Luton Town FC,0,0
+2024-08-17,EFL Championship,West Bromwich Albion FC,Leeds United FC,0,0
+2024-08-17,EFL Championship,Bristol City FC,Millwall FC,4,3
+2024-08-17,EFL Championship,Burnley FC,Cardiff City FC,5,0
+2024-08-17,EFL Championship,Norwich City FC,Blackburn Rovers FC,2,2
+2024-08-17,EFL Championship,Plymouth Argyle FC,Hull City AFC,1,1
+2024-08-17,EFL Championship,Sheffield United FC,Queens Park Rangers FC,2,2
+2024-08-17,EFL Championship,Swansea City AFC,Preston North End FC,3,0
+2024-08-17,EFL Championship,Watford FC,Stoke City FC,3,0
+2024-08-18,EFL Championship,Sunderland AFC,Sheffield Wednesday FC,4,0
+2024-08-23,EFL Championship,Sheffield Wednesday FC,Leeds United FC,0,2
+2024-08-24,EFL Championship,Bristol City FC,Coventry City FC,1,1
+2024-08-24,EFL Championship,Hull City AFC,Millwall FC,0,0
+2024-08-24,EFL Championship,Queens Park Rangers FC,Plymouth Argyle FC,1,1
+2024-08-24,EFL Championship,Watford FC,Derby County FC,2,1
+2024-08-24,EFL Championship,Blackburn Rovers FC,Oxford United FC,2,1
+2024-08-24,EFL Championship,Middlesbrough FC,Portsmouth FC,2,2
+2024-08-24,EFL Championship,Norwich City FC,Sheffield United FC,1,1
+2024-08-24,EFL Championship,Preston North End FC,Luton Town FC,1,0
+2024-08-24,EFL Championship,Stoke City FC,West Bromwich Albion FC,1,2
+2024-08-24,EFL Championship,Sunderland AFC,Burnley FC,1,0
+2024-08-25,EFL Championship,Swansea City AFC,Cardiff City FC,1,1
+2024-08-30,EFL Championship,Luton Town FC,Queens Park Rangers FC,1,2
+2024-08-31,EFL Championship,Burnley FC,Blackburn Rovers FC,1,1
+2024-08-31,EFL Championship,Cardiff City FC,Middlesbrough FC,0,2
+2024-08-31,EFL Championship,Coventry City FC,Norwich City FC,0,1
+2024-08-31,EFL Championship,Derby County FC,Bristol City FC,3,0
+2024-08-31,EFL Championship,Leeds United FC,Hull City AFC,2,0
+2024-08-31,EFL Championship,Millwall FC,Sheffield Wednesday FC,3,0
+2024-08-31,EFL Championship,Oxford United FC,Preston North End FC,3,1
+2024-08-31,EFL Championship,Plymouth Argyle FC,Stoke City FC,0,1
+2024-08-31,EFL Championship,Portsmouth FC,Sunderland AFC,1,3
+2024-08-31,EFL Championship,West Bromwich Albion FC,Swansea City AFC,1,0
+2024-09-01,EFL Championship,Sheffield United FC,Watford FC,1,0
+2024-09-13,EFL Championship,Hull City AFC,Sheffield United FC,0,2
+2024-09-14,EFL Championship,Leeds United FC,Burnley FC,0,1
+2024-09-14,EFL Championship,Millwall FC,Luton Town FC,0,1
+2024-09-14,EFL Championship,Oxford United FC,Stoke City FC,1,0
+2024-09-14,EFL Championship,Blackburn Rovers FC,Bristol City FC,3,0
+2024-09-14,EFL Championship,Derby County FC,Cardiff City FC,1,0
+2024-09-14,EFL Championship,Middlesbrough FC,Preston North End FC,1,1
+2024-09-14,EFL Championship,Plymouth Argyle FC,Sunderland AFC,3,2
+2024-09-14,EFL Championship,Sheffield Wednesday FC,Queens Park Rangers FC,1,1
+2024-09-14,EFL Championship,Swansea City AFC,Norwich City FC,1,0
+2024-09-14,EFL Championship,Watford FC,Coventry City FC,1,1
+2024-09-15,EFL Championship,Portsmouth FC,West Bromwich Albion FC,0,3
+2024-09-20,EFL Championship,Stoke City FC,Hull City AFC,1,3
+2024-09-21,EFL Championship,Norwich City FC,Watford FC,4,1
+2024-09-21,EFL Championship,Queens Park Rangers FC,Millwall FC,1,1
+2024-09-21,EFL Championship,Sunderland AFC,Middlesbrough FC,1,0
+2024-09-21,EFL Championship,Bristol City FC,Oxford United FC,2,1
+2024-09-21,EFL Championship,Burnley FC,Portsmouth FC,2,1
+2024-09-21,EFL Championship,Cardiff City FC,Leeds United FC,0,2
+2024-09-21,EFL Championship,Coventry City FC,Swansea City AFC,1,2
+2024-09-21,EFL Championship,Luton Town FC,Sheffield Wednesday FC,2,1
+2024-09-21,EFL Championship,Sheffield United FC,Derby County FC,1,0
+2024-09-21,EFL Championship,West Bromwich Albion FC,Plymouth Argyle FC,1,0
+2024-09-22,EFL Championship,Preston North End FC,Blackburn Rovers FC,0,0
+2024-09-27,EFL Championship,Plymouth Argyle FC,Luton Town FC,3,1
+2024-09-28,EFL Championship,Blackburn Rovers FC,Queens Park Rangers FC,2,0
+2024-09-28,EFL Championship,Derby County FC,Norwich City FC,2,3
+2024-09-28,EFL Championship,Sheffield Wednesday FC,West Bromwich Albion FC,3,2
+2024-09-28,EFL Championship,Hull City AFC,Cardiff City FC,4,1
+2024-09-28,EFL Championship,Leeds United FC,Coventry City FC,3,0
+2024-09-28,EFL Championship,Middlesbrough FC,Stoke City FC,2,0
+2024-09-28,EFL Championship,Millwall FC,Preston North End FC,3,1
+2024-09-28,EFL Championship,Oxford United FC,Burnley FC,0,0
+2024-09-28,EFL Championship,Portsmouth FC,Sheffield United FC,0,0
+2024-09-28,EFL Championship,Watford FC,Sunderland AFC,2,1
+2024-09-29,EFL Championship,Swansea City AFC,Bristol City FC,1,1
+2024-10-01,EFL Championship,Burnley FC,Plymouth Argyle FC,1,0
+2024-10-01,EFL Championship,Cardiff City FC,Millwall FC,1,0
+2024-10-01,EFL Championship,Coventry City FC,Blackburn Rovers FC,3,0
+2024-10-01,EFL Championship,Luton Town FC,Oxford United FC,2,2
+2024-10-01,EFL Championship,Queens Park Rangers FC,Hull City AFC,1,3
+2024-10-01,EFL Championship,Sunderland AFC,Derby County FC,2,0
+2024-10-01,EFL Championship,Norwich City FC,Leeds United FC,1,1
+2024-10-01,EFL Championship,West Bromwich Albion FC,Middlesbrough FC,0,1
+2024-10-02,EFL Championship,Sheffield United FC,Swansea City AFC,1,0
+2024-10-02,EFL Championship,Preston North End FC,Watford FC,3,0
+2024-10-02,EFL Championship,Stoke City FC,Portsmouth FC,6,1
+2024-10-02,EFL Championship,Bristol City FC,Sheffield Wednesday FC,0,0
+2024-10-04,EFL Championship,Sunderland AFC,Leeds United FC,2,2
+2024-10-05,EFL Championship,Burnley FC,Preston North End FC,0,0
+2024-10-05,EFL Championship,Norwich City FC,Hull City AFC,4,0
+2024-10-05,EFL Championship,Portsmouth FC,Oxford United FC,1,1
+2024-10-05,EFL Championship,Coventry City FC,Sheffield Wednesday FC,1,2
+2024-10-05,EFL Championship,Derby County FC,Queens Park Rangers FC,2,0
+2024-10-05,EFL Championship,Plymouth Argyle FC,Blackburn Rovers FC,2,1
+2024-10-05,EFL Championship,Sheffield United FC,Luton Town FC,2,0
+2024-10-05,EFL Championship,Swansea City AFC,Stoke City FC,0,0
+2024-10-05,EFL Championship,Watford FC,Middlesbrough FC,2,1
+2024-10-05,EFL Championship,West Bromwich Albion FC,Millwall FC,0,0
+2024-10-06,EFL Championship,Bristol City FC,Cardiff City FC,1,1
+2024-10-18,EFL Championship,Leeds United FC,Sheffield United FC,2,0
+2024-10-19,EFL Championship,Cardiff City FC,Plymouth Argyle FC,5,0
+2024-10-19,EFL Championship,Luton Town FC,Watford FC,3,0
+2024-10-19,EFL Championship,Oxford United FC,West Bromwich Albion FC,1,1
+2024-10-19,EFL Championship,Preston North End FC,Coventry City FC,1,0
+2024-10-19,EFL Championship,Blackburn Rovers FC,Swansea City AFC,1,0
+2024-10-19,EFL Championship,Middlesbrough FC,Bristol City FC,0,2
+2024-10-19,EFL Championship,Millwall FC,Derby County FC,1,1
+2024-10-19,EFL Championship,Queens Park Rangers FC,Portsmouth FC,1,2
+2024-10-19,EFL Championship,Sheffield Wednesday FC,Burnley FC,0,2
+2024-10-19,EFL Championship,Stoke City FC,Norwich City FC,1,1
+2024-10-20,EFL Championship,Hull City AFC,Sunderland AFC,0,1
+2024-10-22,EFL Championship,Cardiff City FC,Portsmouth FC,2,0
+2024-10-22,EFL Championship,Leeds United FC,Watford FC,2,1
+2024-10-22,EFL Championship,Oxford United FC,Derby County FC,1,1
+2024-10-22,EFL Championship,Preston North End FC,Norwich City FC,2,2
+2024-10-22,EFL Championship,Sheffield Wednesday FC,Swansea City AFC,0,0
+2024-10-22,EFL Championship,Stoke City FC,Bristol City FC,2,2
+2024-10-22,EFL Championship,Queens Park Rangers FC,Coventry City FC,1,1
+2024-10-23,EFL Championship,Hull City AFC,Burnley FC,1,1
+2024-10-23,EFL Championship,Blackburn Rovers FC,West Bromwich Albion FC,0,0
+2024-10-23,EFL Championship,Luton Town FC,Sunderland AFC,1,2
+2024-10-23,EFL Championship,Millwall FC,Plymouth Argyle FC,1,0
+2024-10-23,EFL Championship,Middlesbrough FC,Sheffield United FC,1,0
+2024-10-25,EFL Championship,Portsmouth FC,Sheffield Wednesday FC,1,2
+2024-10-26,EFL Championship,Bristol City FC,Leeds United FC,0,0
+2024-10-26,EFL Championship,Coventry City FC,Luton Town FC,3,2
+2024-10-26,EFL Championship,Watford FC,Blackburn Rovers FC,1,0
+2024-10-26,EFL Championship,Burnley FC,Queens Park Rangers FC,0,0
+2024-10-26,EFL Championship,Derby County FC,Hull City AFC,1,1
+2024-10-26,EFL Championship,Plymouth Argyle FC,Preston North End FC,3,3
+2024-10-26,EFL Championship,Sheffield United FC,Stoke City FC,2,0
+2024-10-26,EFL Championship,Sunderland AFC,Oxford United FC,2,0
+2024-10-26,EFL Championship,Swansea City AFC,Millwall FC,0,1
+2024-10-26,EFL Championship,West Bromwich Albion FC,Cardiff City FC,0,0
+2024-10-27,EFL Championship,Norwich City FC,Middlesbrough FC,3,3
+2024-11-01,EFL Championship,Luton Town FC,West Bromwich Albion FC,1,1
+2024-11-02,EFL Championship,Blackburn Rovers FC,Sheffield United FC,0,2
+2024-11-02,EFL Championship,Oxford United FC,Swansea City AFC,1,2
+2024-11-02,EFL Championship,Stoke City FC,Derby County FC,2,1
+2024-11-02,EFL Championship,Cardiff City FC,Norwich City FC,2,1
+2024-11-02,EFL Championship,Hull City AFC,Portsmouth FC,1,1
+2024-11-02,EFL Championship,Leeds United FC,Plymouth Argyle FC,3,0
+2024-11-02,EFL Championship,Middlesbrough FC,Coventry City FC,0,3
+2024-11-02,EFL Championship,Preston North End FC,Bristol City FC,1,3
+2024-11-02,EFL Championship,Queens Park Rangers FC,Sunderland AFC,0,0
+2024-11-02,EFL Championship,Sheffield Wednesday FC,Watford FC,2,6
+2024-11-03,EFL Championship,Millwall FC,Burnley FC,1,0
+2024-11-05,EFL Championship,Bristol City FC,Sheffield United FC,1,2
+2024-11-05,EFL Championship,Oxford United FC,Hull City AFC,1,0
+2024-11-05,EFL Championship,Queens Park Rangers FC,Middlesbrough FC,1,4
+2024-11-05,EFL Championship,Sheffield Wednesday FC,Norwich City FC,2,0
+2024-11-05,EFL Championship,Plymouth Argyle FC,Portsmouth FC,1,0
+2024-11-05,EFL Championship,Swansea City AFC,Watford FC,1,0
+2024-11-06,EFL Championship,Millwall FC,Leeds United FC,1,0
+2024-11-06,EFL Championship,Blackburn Rovers FC,Stoke City FC,0,2
+2024-11-06,EFL Championship,Coventry City FC,Derby County FC,1,2
+2024-11-06,EFL Championship,Luton Town FC,Cardiff City FC,1,0
+2024-11-06,EFL Championship,Preston North End FC,Sunderland AFC,0,0
+2024-11-07,EFL Championship,West Bromwich Albion FC,Burnley FC,0,0
+2024-11-08,EFL Championship,Watford FC,Oxford United FC,1,0
+2024-11-09,EFL Championship,Cardiff City FC,Blackburn Rovers FC,1,3
+2024-11-09,EFL Championship,Middlesbrough FC,Luton Town FC,5,1
+2024-11-09,EFL Championship,Stoke City FC,Millwall FC,1,1
+2024-11-09,EFL Championship,Derby County FC,Plymouth Argyle FC,1,1
+2024-11-09,EFL Championship,Leeds United FC,Queens Park Rangers FC,2,0
+2024-11-09,EFL Championship,Norwich City FC,Bristol City FC,0,2
+2024-11-09,EFL Championship,Portsmouth FC,Preston North End FC,3,1
+2024-11-09,EFL Championship,Sunderland AFC,Coventry City FC,2,2
+2024-11-10,EFL Championship,Sheffield United FC,Sheffield Wednesday FC,1,0
+2024-11-10,EFL Championship,Hull City AFC,West Bromwich Albion FC,1,2
+2024-11-10,EFL Championship,Burnley FC,Swansea City AFC,1,0
+2024-11-22,EFL Championship,Plymouth Argyle FC,Watford FC,2,2
+2024-11-23,EFL Championship,Bristol City FC,Burnley FC,0,1
+2024-11-23,EFL Championship,Coventry City FC,Sheffield United FC,2,2
+2024-11-23,EFL Championship,Sheffield Wednesday FC,Cardiff City FC,1,1
+2024-11-23,EFL Championship,Luton Town FC,Hull City AFC,1,0
+2024-11-23,EFL Championship,Millwall FC,Sunderland AFC,1,1
+2024-11-23,EFL Championship,Oxford United FC,Middlesbrough FC,2,6
+2024-11-23,EFL Championship,Preston North End FC,Derby County FC,1,1
+2024-11-23,EFL Championship,Queens Park Rangers FC,Stoke City FC,1,1
+2024-11-23,EFL Championship,West Bromwich Albion FC,Norwich City FC,2,2
+2024-11-24,EFL Championship,Swansea City AFC,Leeds United FC,3,4
+2024-11-26,EFL Championship,Burnley FC,Coventry City FC,2,0
+2024-11-26,EFL Championship,Hull City AFC,Sheffield Wednesday FC,0,2
+2024-11-26,EFL Championship,Norwich City FC,Plymouth Argyle FC,6,1
+2024-11-26,EFL Championship,Sheffield United FC,Oxford United FC,3,0
+2024-11-26,EFL Championship,Stoke City FC,Preston North End FC,0,0
+2024-11-26,EFL Championship,Watford FC,Bristol City FC,1,0
+2024-11-26,EFL Championship,Sunderland AFC,West Bromwich Albion FC,0,0
+2024-11-27,EFL Championship,Leeds United FC,Luton Town FC,3,0
+2024-11-27,EFL Championship,Cardiff City FC,Queens Park Rangers FC,0,2
+2024-11-27,EFL Championship,Middlesbrough FC,Blackburn Rovers FC,0,1
+2024-11-27,EFL Championship,Derby County FC,Swansea City AFC,1,2
+2024-11-29,EFL Championship,Sheffield United FC,Sunderland AFC,1,0
+2024-11-30,EFL Championship,Middlesbrough FC,Hull City AFC,3,1
+2024-11-30,EFL Championship,Oxford United FC,Millwall FC,1,1
+2024-11-30,EFL Championship,Watford FC,Queens Park Rangers FC,0,0
+2024-11-30,EFL Championship,Blackburn Rovers FC,Leeds United FC,1,0
+2024-11-30,EFL Championship,Bristol City FC,Plymouth Argyle FC,4,0
+2024-11-30,EFL Championship,Coventry City FC,Cardiff City FC,2,2
+2024-11-30,EFL Championship,Norwich City FC,Luton Town FC,4,2
+2024-11-30,EFL Championship,Preston North End FC,West Bromwich Albion FC,1,1
+2024-11-30,EFL Championship,Stoke City FC,Burnley FC,0,2
+2024-11-30,EFL Championship,Swansea City AFC,Portsmouth FC,2,2
+2024-12-01,EFL Championship,Derby County FC,Sheffield Wednesday FC,1,2
+2024-12-06,EFL Championship,Burnley FC,Middlesbrough FC,1,1
+2024-12-07,EFL Championship,Leeds United FC,Derby County FC,2,0
+2024-12-07,EFL Championship,Sheffield Wednesday FC,Preston North End FC,1,1
+2024-12-07,EFL Championship,Sunderland AFC,Stoke City FC,2,1
+2024-12-07,EFL Championship,Hull City AFC,Blackburn Rovers FC,0,1
+2024-12-07,EFL Championship,Luton Town FC,Swansea City AFC,1,1
+2024-12-07,EFL Championship,Millwall FC,Coventry City FC,0,1
+2024-12-07,EFL Championship,Portsmouth FC,Bristol City FC,3,0
+2024-12-07,EFL Championship,Queens Park Rangers FC,Norwich City FC,3,0
+2024-12-08,EFL Championship,West Bromwich Albion FC,Sheffield United FC,2,2
+2024-12-10,EFL Championship,Burnley FC,Derby County FC,0,0
+2024-12-10,EFL Championship,Luton Town FC,Stoke City FC,2,1
+2024-12-10,EFL Championship,Plymouth Argyle FC,Swansea City AFC,1,2
+2024-12-10,EFL Championship,Portsmouth FC,Norwich City FC,0,0
+2024-12-10,EFL Championship,Sheffield Wednesday FC,Blackburn Rovers FC,0,1
+2024-12-10,EFL Championship,Sunderland AFC,Bristol City FC,1,1
+2024-12-10,EFL Championship,Leeds United FC,Middlesbrough FC,3,1
+2024-12-11,EFL Championship,Millwall FC,Sheffield United FC,0,1
+2024-12-11,EFL Championship,Cardiff City FC,Preston North End FC,0,2
+2024-12-11,EFL Championship,Hull City AFC,Watford FC,1,1
+2024-12-11,EFL Championship,Queens Park Rangers FC,Oxford United FC,2,0
+2024-12-11,EFL Championship,West Bromwich Albion FC,Coventry City FC,2,0
+2024-12-13,EFL Championship,Derby County FC,Portsmouth FC,4,0
+2024-12-14,EFL Championship,Bristol City FC,Queens Park Rangers FC,1,1
+2024-12-14,EFL Championship,Coventry City FC,Hull City AFC,2,1
+2024-12-14,EFL Championship,Preston North End FC,Leeds United FC,1,1
+2024-12-14,EFL Championship,Blackburn Rovers FC,Luton Town FC,2,0
+2024-12-14,EFL Championship,Middlesbrough FC,Millwall FC,1,0
+2024-12-14,EFL Championship,Oxford United FC,Sheffield Wednesday FC,1,3
+2024-12-14,EFL Championship,Sheffield United FC,Plymouth Argyle FC,2,0
+2024-12-14,EFL Championship,Stoke City FC,Cardiff City FC,2,2
+2024-12-14,EFL Championship,Swansea City AFC,Sunderland AFC,2,3
+2024-12-15,EFL Championship,Watford FC,West Bromwich Albion FC,2,1
+2024-12-15,EFL Championship,Norwich City FC,Burnley FC,1,2
+2024-12-20,EFL Championship,Luton Town FC,Derby County FC,2,1
+2024-12-21,EFL Championship,Hull City AFC,Swansea City AFC,2,1
+2024-12-21,EFL Championship,Portsmouth FC,Coventry City FC,4,1
+2024-12-21,EFL Championship,Sheffield Wednesday FC,Stoke City FC,2,0
+2024-12-21,EFL Championship,Burnley FC,Watford FC,2,1
+2024-12-21,EFL Championship,Cardiff City FC,Sheffield United FC,0,2
+2024-12-21,EFL Championship,Leeds United FC,Oxford United FC,4,0
+2024-12-21,EFL Championship,Millwall FC,Blackburn Rovers FC,1,0
+2024-12-21,EFL Championship,Plymouth Argyle FC,Middlesbrough FC,3,3
+2024-12-21,EFL Championship,Queens Park Rangers FC,Preston North End FC,2,1
+2024-12-21,EFL Championship,Sunderland AFC,Norwich City FC,2,1
+2024-12-22,EFL Championship,West Bromwich Albion FC,Bristol City FC,2,0
+2024-12-26,EFL Championship,Blackburn Rovers FC,Sunderland AFC,2,2
+2024-12-26,EFL Championship,Bristol City FC,Luton Town FC,1,0
+2024-12-26,EFL Championship,Coventry City FC,Plymouth Argyle FC,4,0
+2024-12-26,EFL Championship,Middlesbrough FC,Sheffield Wednesday FC,3,3
+2024-12-26,EFL Championship,Norwich City FC,Millwall FC,2,1
+2024-12-26,EFL Championship,Oxford United FC,Cardiff City FC,3,2
+2024-12-26,EFL Championship,Preston North End FC,Hull City AFC,1,0
+2024-12-26,EFL Championship,Sheffield United FC,Burnley FC,0,2
+2024-12-26,EFL Championship,Swansea City AFC,Queens Park Rangers FC,3,0
+2024-12-26,EFL Championship,Watford FC,Portsmouth FC,2,1
+2024-12-26,EFL Championship,Derby County FC,West Bromwich Albion FC,2,1
+2024-12-26,EFL Championship,Stoke City FC,Leeds United FC,0,2
+2024-12-29,EFL Championship,Norwich City FC,Queens Park Rangers FC,1,1
+2024-12-29,EFL Championship,Preston North End FC,Sheffield Wednesday FC,3,1
+2024-12-29,EFL Championship,Sheffield United FC,West Bromwich Albion FC,1,1
+2024-12-29,EFL Championship,Blackburn Rovers FC,Hull City AFC,0,1
+2024-12-29,EFL Championship,Bristol City FC,Portsmouth FC,3,0
+2024-12-29,EFL Championship,Coventry City FC,Millwall FC,0,0
+2024-12-29,EFL Championship,Oxford United FC,Plymouth Argyle FC,2,0
+2024-12-29,EFL Championship,Stoke City FC,Sunderland AFC,1,0
+2024-12-29,EFL Championship,Swansea City AFC,Luton Town FC,2,1
+2024-12-29,EFL Championship,Watford FC,Cardiff City FC,1,2
+2024-12-29,EFL Championship,Derby County FC,Leeds United FC,0,1
+2024-12-29,EFL Championship,Middlesbrough FC,Burnley FC,0,0
+2025-01-01,EFL Championship,Plymouth Argyle FC,Bristol City FC,2,2
+2025-01-01,EFL Championship,Queens Park Rangers FC,Watford FC,3,1
+2025-01-01,EFL Championship,Millwall FC,Oxford United FC,0,1
+2025-01-01,EFL Championship,Leeds United FC,Blackburn Rovers FC,1,1
+2025-01-01,EFL Championship,Luton Town FC,Norwich City FC,0,1
+2025-01-01,EFL Championship,Portsmouth FC,Swansea City AFC,4,0
+2025-01-01,EFL Championship,Sheffield Wednesday FC,Derby County FC,4,2
+2025-01-01,EFL Championship,West Bromwich Albion FC,Preston North End FC,3,1
+2025-01-01,EFL Championship,Burnley FC,Stoke City FC,0,0
+2025-01-01,EFL Championship,Cardiff City FC,Coventry City FC,1,1
+2025-01-01,EFL Championship,Hull City AFC,Middlesbrough FC,0,1
+2025-01-01,EFL Championship,Sunderland AFC,Sheffield United FC,2,1
+2025-01-04,EFL Championship,Blackburn Rovers FC,Burnley FC,0,1
+2025-01-04,EFL Championship,Stoke City FC,Plymouth Argyle FC,0,0
+2025-01-04,EFL Championship,Swansea City AFC,West Bromwich Albion FC,1,1
+2025-01-04,EFL Championship,Bristol City FC,Derby County FC,1,0
+2025-01-04,EFL Championship,Hull City AFC,Leeds United FC,3,3
+2025-01-04,EFL Championship,Middlesbrough FC,Cardiff City FC,1,1
+2025-01-04,EFL Championship,Norwich City FC,Coventry City FC,2,1
+2025-01-04,EFL Championship,Preston North End FC,Oxford United FC,1,1
+2025-01-04,EFL Championship,Sheffield Wednesday FC,Millwall FC,2,2
+2025-01-04,EFL Championship,Watford FC,Sheffield United FC,1,2
+2025-01-05,EFL Championship,Sunderland AFC,Portsmouth FC,1,0
+2025-01-06,EFL Championship,Queens Park Rangers FC,Luton Town FC,2,1
+2025-01-14,EFL Championship,Cardiff City FC,Watford FC,1,1
+2025-01-14,EFL Championship,Plymouth Argyle FC,Oxford United FC,1,1
+2025-01-15,EFL Championship,Blackburn Rovers FC,Portsmouth FC,3,0
+2025-01-17,EFL Championship,Burnley FC,Sunderland AFC,0,0
+2025-01-18,EFL Championship,Cardiff City FC,Swansea City AFC,3,0
+2025-01-18,EFL Championship,Millwall FC,Hull City AFC,0,1
+2025-01-18,EFL Championship,Plymouth Argyle FC,Queens Park Rangers FC,0,1
+2025-01-18,EFL Championship,Coventry City FC,Bristol City FC,1,0
+2025-01-18,EFL Championship,Derby County FC,Watford FC,0,2
+2025-01-18,EFL Championship,Luton Town FC,Preston North End FC,0,0
+2025-01-18,EFL Championship,Oxford United FC,Blackburn Rovers FC,1,0
+2025-01-18,EFL Championship,Portsmouth FC,Middlesbrough FC,2,1
+2025-01-18,EFL Championship,Sheffield United FC,Norwich City FC,2,0
+2025-01-18,EFL Championship,West Bromwich Albion FC,Stoke City FC,1,1
+2025-01-19,EFL Championship,Leeds United FC,Sheffield Wednesday FC,3,0
+2025-01-21,EFL Championship,Blackburn Rovers FC,Coventry City FC,0,2
+2025-01-21,EFL Championship,Derby County FC,Sunderland AFC,0,1
+2025-01-21,EFL Championship,Hull City AFC,Queens Park Rangers FC,1,2
+2025-01-21,EFL Championship,Middlesbrough FC,West Bromwich Albion FC,2,0
+2025-01-21,EFL Championship,Oxford United FC,Luton Town FC,3,2
+2025-01-21,EFL Championship,Swansea City AFC,Sheffield United FC,1,2
+2025-01-21,EFL Championship,Watford FC,Preston North End FC,1,2
+2025-01-21,EFL Championship,Millwall FC,Cardiff City FC,2,2
+2025-01-22,EFL Championship,Leeds United FC,Norwich City FC,2,0
+2025-01-22,EFL Championship,Portsmouth FC,Stoke City FC,3,1
+2025-01-22,EFL Championship,Sheffield Wednesday FC,Bristol City FC,2,2
+2025-01-22,EFL Championship,Plymouth Argyle FC,Burnley FC,0,5
+2025-01-24,EFL Championship,Sheffield United FC,Hull City AFC,0,3
+2025-01-25,EFL Championship,Luton Town FC,Millwall FC,0,1
+2025-01-25,EFL Championship,Norwich City FC,Swansea City AFC,5,1
+2025-01-25,EFL Championship,Stoke City FC,Oxford United FC,0,0
+2025-01-25,EFL Championship,Bristol City FC,Blackburn Rovers FC,2,1
+2025-01-25,EFL Championship,Cardiff City FC,Derby County FC,2,1
+2025-01-25,EFL Championship,Coventry City FC,Watford FC,2,1
+2025-01-25,EFL Championship,Preston North End FC,Middlesbrough FC,2,1
+2025-01-25,EFL Championship,Queens Park Rangers FC,Sheffield Wednesday FC,0,2
+2025-01-25,EFL Championship,Sunderland AFC,Plymouth Argyle FC,2,2
+2025-01-25,EFL Championship,West Bromwich Albion FC,Portsmouth FC,5,1
+2025-01-27,EFL Championship,Burnley FC,Leeds United FC,0,0
+2025-01-28,EFL Championship,Portsmouth FC,Millwall FC,0,1
+2025-01-31,EFL Championship,Blackburn Rovers FC,Preston North End FC,2,1
+2025-02-01,EFL Championship,Oxford United FC,Bristol City FC,1,1
+2025-02-01,EFL Championship,Plymouth Argyle FC,West Bromwich Albion FC,2,1
+2025-02-01,EFL Championship,Watford FC,Norwich City FC,0,1
+2025-02-01,EFL Championship,Derby County FC,Sheffield United FC,0,1
+2025-02-01,EFL Championship,Hull City AFC,Stoke City FC,1,2
+2025-02-01,EFL Championship,Leeds United FC,Cardiff City FC,7,0
+2025-02-01,EFL Championship,Millwall FC,Queens Park Rangers FC,2,1
+2025-02-01,EFL Championship,Portsmouth FC,Burnley FC,0,0
+2025-02-01,EFL Championship,Sheffield Wednesday FC,Luton Town FC,1,1
+2025-02-01,EFL Championship,Swansea City AFC,Coventry City FC,0,2
+2025-02-03,EFL Championship,Middlesbrough FC,Sunderland AFC,2,3
+2025-02-04,EFL Championship,Burnley FC,Oxford United FC,1,0
+2025-02-04,EFL Championship,Queens Park Rangers FC,Blackburn Rovers FC,2,1
+2025-02-05,EFL Championship,Coventry City FC,Leeds United FC,0,2
+2025-02-08,EFL Championship,Sunderland AFC,Watford FC,2,2
+2025-02-08,EFL Championship,West Bromwich Albion FC,Sheffield Wednesday FC,2,1
+2025-02-08,EFL Championship,Norwich City FC,Derby County FC,1,1
+2025-02-08,EFL Championship,Sheffield United FC,Portsmouth FC,2,1
+2025-02-09,EFL Championship,Bristol City FC,Swansea City AFC,0,1
+2025-02-11,EFL Championship,Coventry City FC,Queens Park Rangers FC,1,0
+2025-02-11,EFL Championship,Derby County FC,Oxford United FC,0,0
+2025-02-11,EFL Championship,Portsmouth FC,Cardiff City FC,2,1
+2025-02-11,EFL Championship,Watford FC,Leeds United FC,0,4
+2025-02-11,EFL Championship,Norwich City FC,Preston North End FC,0,1
+2025-02-12,EFL Championship,Bristol City FC,Stoke City FC,2,0
+2025-02-12,EFL Championship,Plymouth Argyle FC,Millwall FC,5,1
+2025-02-12,EFL Championship,Swansea City AFC,Sheffield Wednesday FC,0,1
+2025-02-12,EFL Championship,Burnley FC,Hull City AFC,2,0
+2025-02-12,EFL Championship,Sunderland AFC,Luton Town FC,2,0
+2025-02-12,EFL Championship,Sheffield United FC,Middlesbrough FC,3,1
+2025-02-12,EFL Championship,West Bromwich Albion FC,Blackburn Rovers FC,0,2
+2025-02-14,EFL Championship,Queens Park Rangers FC,Derby County FC,4,0
+2025-02-15,EFL Championship,Cardiff City FC,Bristol City FC,1,1
+2025-02-15,EFL Championship,Oxford United FC,Portsmouth FC,0,2
+2025-02-15,EFL Championship,Preston North End FC,Burnley FC,0,0
+2025-02-15,EFL Championship,Blackburn Rovers FC,Plymouth Argyle FC,2,0
+2025-02-15,EFL Championship,Hull City AFC,Norwich City FC,1,1
+2025-02-15,EFL Championship,Luton Town FC,Sheffield United FC,0,1
+2025-02-15,EFL Championship,Middlesbrough FC,Watford FC,0,1
+2025-02-15,EFL Championship,Millwall FC,West Bromwich Albion FC,1,1
+2025-02-15,EFL Championship,Sheffield Wednesday FC,Coventry City FC,1,2
+2025-02-15,EFL Championship,Stoke City FC,Swansea City AFC,3,1
+2025-02-17,EFL Championship,Leeds United FC,Sunderland AFC,2,1
+2025-02-18,EFL Championship,Preston North End FC,Millwall FC,1,1
+2025-02-19,EFL Championship,Luton Town FC,Plymouth Argyle FC,1,1
+2025-02-21,EFL Championship,Bristol City FC,Middlesbrough FC,2,1
+2025-02-21,EFL Championship,Burnley FC,Sheffield Wednesday FC,4,0
+2025-02-22,EFL Championship,Derby County FC,Millwall FC,0,1
+2025-02-22,EFL Championship,Plymouth Argyle FC,Cardiff City FC,1,1
+2025-02-22,EFL Championship,Sunderland AFC,Hull City AFC,0,1
+2025-02-22,EFL Championship,Coventry City FC,Preston North End FC,2,1
+2025-02-22,EFL Championship,Norwich City FC,Stoke City FC,4,2
+2025-02-22,EFL Championship,Portsmouth FC,Queens Park Rangers FC,2,1
+2025-02-22,EFL Championship,Swansea City AFC,Blackburn Rovers FC,3,0
+2025-02-22,EFL Championship,West Bromwich Albion FC,Oxford United FC,2,0
+2025-02-23,EFL Championship,Watford FC,Luton Town FC,2,0
+2025-02-24,EFL Championship,Sheffield United FC,Leeds United FC,1,3
+2025-02-25,EFL Championship,Cardiff City FC,Hull City AFC,1,0
+2025-02-25,EFL Championship,Stoke City FC,Middlesbrough FC,1,3
+2025-02-28,EFL Championship,Sheffield Wednesday FC,Sunderland AFC,1,2
+2025-03-01,EFL Championship,Blackburn Rovers FC,Norwich City FC,1,1
+2025-03-01,EFL Championship,Leeds United FC,West Bromwich Albion FC,1,1
+2025-03-01,EFL Championship,Oxford United FC,Coventry City FC,2,3
+2025-03-01,EFL Championship,Luton Town FC,Portsmouth FC,1,0
+2025-03-01,EFL Championship,Middlesbrough FC,Derby County FC,1,0
+2025-03-01,EFL Championship,Queens Park Rangers FC,Sheffield United FC,1,2
+2025-03-01,EFL Championship,Stoke City FC,Watford FC,0,0
+2025-03-04,EFL Championship,Cardiff City FC,Burnley FC,1,2
+2025-03-04,EFL Championship,Hull City AFC,Plymouth Argyle FC,2,0
+2025-03-04,EFL Championship,Millwall FC,Bristol City FC,0,2
+2025-03-04,EFL Championship,Preston North End FC,Swansea City AFC,0,0
+2025-03-07,EFL Championship,Norwich City FC,Oxford United FC,1,1
+2025-03-08,EFL Championship,Coventry City FC,Stoke City FC,3,2
+2025-03-08,EFL Championship,Watford FC,Millwall FC,1,2
+2025-03-08,EFL Championship,Bristol City FC,Hull City AFC,1,1
+2025-03-08,EFL Championship,Burnley FC,Luton Town FC,4,0
+2025-03-08,EFL Championship,Derby County FC,Blackburn Rovers FC,2,1
+2025-03-08,EFL Championship,Plymouth Argyle FC,Sheffield Wednesday FC,0,3
+2025-03-08,EFL Championship,Sheffield United FC,Preston North End FC,1,0
+2025-03-08,EFL Championship,Sunderland AFC,Cardiff City FC,2,1
+2025-03-08,EFL Championship,Swansea City AFC,Middlesbrough FC,1,0
+2025-03-08,EFL Championship,West Bromwich Albion FC,Queens Park Rangers FC,1,0
+2025-03-09,EFL Championship,Portsmouth FC,Leeds United FC,1,0
+2025-03-11,EFL Championship,Burnley FC,West Bromwich Albion FC,1,1
+2025-03-11,EFL Championship,Cardiff City FC,Luton Town FC,1,2
+2025-03-11,EFL Championship,Derby County FC,Coventry City FC,2,0
+2025-03-11,EFL Championship,Middlesbrough FC,Queens Park Rangers FC,2,1
+2025-03-11,EFL Championship,Sunderland AFC,Preston North End FC,1,1
+2025-03-11,EFL Championship,Norwich City FC,Sheffield Wednesday FC,2,3
+2025-03-11,EFL Championship,Sheffield United FC,Bristol City FC,1,1
+2025-03-12,EFL Championship,Portsmouth FC,Plymouth Argyle FC,1,2
+2025-03-12,EFL Championship,Hull City AFC,Oxford United FC,2,1
+2025-03-12,EFL Championship,Leeds United FC,Millwall FC,2,0
+2025-03-12,EFL Championship,Watford FC,Swansea City AFC,1,0
+2025-03-12,EFL Championship,Stoke City FC,Blackburn Rovers FC,1,0
+2025-03-14,EFL Championship,Bristol City FC,Norwich City FC,2,1
+2025-03-15,EFL Championship,Millwall FC,Stoke City FC,1,0
+2025-03-15,EFL Championship,Queens Park Rangers FC,Leeds United FC,2,2
+2025-03-15,EFL Championship,Blackburn Rovers FC,Cardiff City FC,1,2
+2025-03-15,EFL Championship,Coventry City FC,Sunderland AFC,3,0
+2025-03-15,EFL Championship,Luton Town FC,Middlesbrough FC,0,0
+2025-03-15,EFL Championship,Oxford United FC,Watford FC,1,0
+2025-03-15,EFL Championship,Plymouth Argyle FC,Derby County FC,2,3
+2025-03-15,EFL Championship,Preston North End FC,Portsmouth FC,2,1
+2025-03-15,EFL Championship,Swansea City AFC,Burnley FC,0,2
+2025-03-15,EFL Championship,West Bromwich Albion FC,Hull City AFC,1,1
+2025-03-16,EFL Championship,Sheffield Wednesday FC,Sheffield United FC,0,1
+2025-03-28,EFL Championship,Sheffield United FC,Coventry City FC,3,1
+2025-03-29,EFL Championship,Watford FC,Plymouth Argyle FC,0,0
+2025-03-29,EFL Championship,Hull City AFC,Luton Town FC,0,1
+2025-03-29,EFL Championship,Sunderland AFC,Millwall FC,1,0
+2025-03-29,EFL Championship,Cardiff City FC,Sheffield Wednesday FC,1,1
+2025-03-29,EFL Championship,Burnley FC,Bristol City FC,1,0
+2025-03-29,EFL Championship,Middlesbrough FC,Oxford United FC,2,1
+2025-03-29,EFL Championship,Leeds United FC,Swansea City AFC,2,2
+2025-03-29,EFL Championship,Norwich City FC,West Bromwich Albion FC,1,0
+2025-03-29,EFL Championship,Portsmouth FC,Blackburn Rovers FC,1,0
+2025-03-29,EFL Championship,Stoke City FC,Queens Park Rangers FC,3,1
+2025-04-02,EFL Championship,Derby County FC,Preston North End FC,2,0
+2025-04-04,EFL Championship,Blackburn Rovers FC,Middlesbrough FC,0,2
+2025-04-05,EFL Championship,Coventry City FC,Burnley FC,1,2
+2025-04-05,EFL Championship,Luton Town FC,Leeds United FC,1,1
+2025-04-05,EFL Championship,West Bromwich Albion FC,Sunderland AFC,0,1
+2025-04-05,EFL Championship,Bristol City FC,Watford FC,2,1
+2025-04-05,EFL Championship,Millwall FC,Portsmouth FC,2,1
+2025-04-05,EFL Championship,Oxford United FC,Sheffield United FC,1,0
+2025-04-05,EFL Championship,Plymouth Argyle FC,Norwich City FC,2,1
+2025-04-05,EFL Championship,Preston North End FC,Stoke City FC,1,1
+2025-04-05,EFL Championship,Queens Park Rangers FC,Cardiff City FC,0,0
+2025-04-05,EFL Championship,Sheffield Wednesday FC,Hull City AFC,0,1
+2025-04-05,EFL Championship,Swansea City AFC,Derby County FC,1,0
+2025-04-08,EFL Championship,Blackburn Rovers FC,Sheffield Wednesday FC,2,2
+2025-04-08,EFL Championship,Bristol City FC,West Bromwich Albion FC,2,1
+2025-04-08,EFL Championship,Norwich City FC,Sunderland AFC,0,0
+2025-04-08,EFL Championship,Preston North End FC,Cardiff City FC,2,2
+2025-04-08,EFL Championship,Sheffield United FC,Millwall FC,0,1
+2025-04-08,EFL Championship,Stoke City FC,Luton Town FC,1,1
+2025-04-08,EFL Championship,Watford FC,Hull City AFC,1,0
+2025-04-08,EFL Championship,Derby County FC,Burnley FC,0,0
+2025-04-08,EFL Championship,Middlesbrough FC,Leeds United FC,0,1
+2025-04-09,EFL Championship,Oxford United FC,Queens Park Rangers FC,1,3
+2025-04-09,EFL Championship,Swansea City AFC,Plymouth Argyle FC,3,0
+2025-04-09,EFL Championship,Coventry City FC,Portsmouth FC,1,0
+2025-04-11,EFL Championship,Burnley FC,Norwich City FC,2,1
+2025-04-12,EFL Championship,Leeds United FC,Preston North End FC,2,1
+2025-04-12,EFL Championship,Plymouth Argyle FC,Sheffield United FC,2,1
+2025-04-12,EFL Championship,Cardiff City FC,Stoke City FC,0,1
+2025-04-12,EFL Championship,Luton Town FC,Blackburn Rovers FC,0,1
+2025-04-12,EFL Championship,Millwall FC,Middlesbrough FC,1,0
+2025-04-12,EFL Championship,Portsmouth FC,Derby County FC,2,2
+2025-04-12,EFL Championship,Queens Park Rangers FC,Bristol City FC,1,1
+2025-04-12,EFL Championship,Sheffield Wednesday FC,Oxford United FC,0,1
+2025-04-12,EFL Championship,Sunderland AFC,Swansea City AFC,0,1
+2025-04-12,EFL Championship,West Bromwich Albion FC,Watford FC,2,1
+2025-04-14,EFL Championship,Hull City AFC,Coventry City FC,1,1
+2025-04-18,EFL Championship,Derby County FC,Luton Town FC,0,1
+2025-04-18,EFL Championship,Blackburn Rovers FC,Millwall FC,4,1
+2025-04-18,EFL Championship,Bristol City FC,Sunderland AFC,2,1
+2025-04-18,EFL Championship,Coventry City FC,West Bromwich Albion FC,2,0
+2025-04-18,EFL Championship,Middlesbrough FC,Plymouth Argyle FC,2,1
+2025-04-18,EFL Championship,Watford FC,Burnley FC,1,2
+2025-04-18,EFL Championship,Norwich City FC,Portsmouth FC,3,5
+2025-04-18,EFL Championship,Preston North End FC,Queens Park Rangers FC,1,2
+2025-04-18,EFL Championship,Stoke City FC,Sheffield Wednesday FC,2,0
+2025-04-18,EFL Championship,Swansea City AFC,Hull City AFC,1,0
+2025-04-18,EFL Championship,Sheffield United FC,Cardiff City FC,2,0
+2025-04-18,EFL Championship,Oxford United FC,Leeds United FC,0,1
+2025-04-21,EFL Championship,Cardiff City FC,Oxford United FC,1,1
+2025-04-21,EFL Championship,Hull City AFC,Preston North End FC,2,1
+2025-04-21,EFL Championship,Leeds United FC,Stoke City FC,6,0
+2025-04-21,EFL Championship,Luton Town FC,Bristol City FC,3,1
+2025-04-21,EFL Championship,Millwall FC,Norwich City FC,3,1
+2025-04-21,EFL Championship,Plymouth Argyle FC,Coventry City FC,3,1
+2025-04-21,EFL Championship,Portsmouth FC,Watford FC,1,0
+2025-04-21,EFL Championship,Queens Park Rangers FC,Swansea City AFC,1,2
+2025-04-21,EFL Championship,Sheffield Wednesday FC,Middlesbrough FC,2,1
+2025-04-21,EFL Championship,Sunderland AFC,Blackburn Rovers FC,0,1
+2025-04-21,EFL Championship,West Bromwich Albion FC,Derby County FC,1,3
+2025-04-21,EFL Championship,Burnley FC,Sheffield United FC,2,1
+2025-04-25,EFL Championship,Stoke City FC,Sheffield United FC,0,2
+2025-04-26,EFL Championship,Luton Town FC,Coventry City FC,1,0
+2025-04-26,EFL Championship,Queens Park Rangers FC,Burnley FC,0,5
+2025-04-26,EFL Championship,Blackburn Rovers FC,Watford FC,2,1
+2025-04-26,EFL Championship,Cardiff City FC,West Bromwich Albion FC,0,0
+2025-04-26,EFL Championship,Hull City AFC,Derby County FC,0,1
+2025-04-26,EFL Championship,Middlesbrough FC,Norwich City FC,0,0
+2025-04-26,EFL Championship,Millwall FC,Swansea City AFC,1,0
+2025-04-26,EFL Championship,Oxford United FC,Sunderland AFC,2,0
+2025-04-26,EFL Championship,Preston North End FC,Plymouth Argyle FC,1,2
+2025-04-26,EFL Championship,Sheffield Wednesday FC,Portsmouth FC,1,1
+2025-04-28,EFL Championship,Leeds United FC,Bristol City FC,4,0
+2025-05-03,EFL Championship,Bristol City FC,Preston North End FC,2,2
+2025-05-03,EFL Championship,Burnley FC,Millwall FC,3,1
+2025-05-03,EFL Championship,Coventry City FC,Middlesbrough FC,2,0
+2025-05-03,EFL Championship,Derby County FC,Stoke City FC,0,0
+2025-05-03,EFL Championship,Norwich City FC,Cardiff City FC,4,2
+2025-05-03,EFL Championship,Plymouth Argyle FC,Leeds United FC,1,2
+2025-05-03,EFL Championship,Portsmouth FC,Hull City AFC,1,1
+2025-05-03,EFL Championship,Sheffield United FC,Blackburn Rovers FC,1,1
+2025-05-03,EFL Championship,Sunderland AFC,Queens Park Rangers FC,0,1
+2025-05-03,EFL Championship,Swansea City AFC,Oxford United FC,3,3
+2025-05-03,EFL Championship,Watford FC,Sheffield Wednesday FC,1,1
+2025-05-03,EFL Championship,West Bromwich Albion FC,Luton Town FC,5,3
+2025-05-08,EFL Championship,Bristol City FC,Sheffield United FC,0,3
+2025-05-09,EFL Championship,Coventry City FC,Sunderland AFC,1,2
+2025-05-12,EFL Championship,Sheffield United FC,Bristol City FC,3,0
+2025-05-13,EFL Championship,Sunderland AFC,Coventry City FC,0,1
+2025-05-24,EFL Championship,Sheffield United FC,Sunderland AFC,1,2
 2023-08-11,Premier League,Burnley FC,Manchester City FC,0,3
 2023-08-12,Premier League,Arsenal FC,Nottingham Forest FC,2,1
 2023-08-12,Premier League,AFC Bournemouth,West Ham United FC,1,1
@@ -5106,6 +5663,386 @@ date,league,home_team,away_team,home_goals,away_goals
 2023-06-04,La Liga,Real Valladolid CF,Getafe CF,0,0
 2023-06-04,La Liga,RC Celta de Vigo,FC Barcelona,2,1
 2023-06-04,La Liga,Real Betis Balompié,Valencia CF,1,1
+2022-08-13,Serie A,UC Sampdoria,Atalanta BC,0,2
+2022-08-13,Serie A,AC Milan,Udinese Calcio,4,2
+2022-08-13,Serie A,US Lecce,FC Internazionale Milano,1,2
+2022-08-13,Serie A,AC Monza,Torino FC,1,2
+2022-08-14,Serie A,ACF Fiorentina,US Cremonese,3,2
+2022-08-14,Serie A,SS Lazio,Bologna FC 1909,2,1
+2022-08-14,Serie A,US Salernitana 1919,AS Roma,0,1
+2022-08-14,Serie A,Spezia Calcio,Empoli FC,1,0
+2022-08-15,Serie A,Hellas Verona FC,SSC Napoli,2,5
+2022-08-15,Serie A,Juventus FC,US Sassuolo Calcio,3,0
+2022-08-20,Serie A,Udinese Calcio,US Salernitana 1919,0,0
+2022-08-20,Serie A,Torino FC,SS Lazio,0,0
+2022-08-20,Serie A,US Sassuolo Calcio,US Lecce,1,0
+2022-08-20,Serie A,FC Internazionale Milano,Spezia Calcio,3,0
+2022-08-21,Serie A,SSC Napoli,AC Monza,4,0
+2022-08-21,Serie A,Empoli FC,ACF Fiorentina,0,0
+2022-08-21,Serie A,Bologna FC 1909,Hellas Verona FC,1,1
+2022-08-21,Serie A,Atalanta BC,AC Milan,1,1
+2022-08-22,Serie A,AS Roma,US Cremonese,1,0
+2022-08-22,Serie A,UC Sampdoria,Juventus FC,0,0
+2022-08-26,Serie A,AC Monza,Udinese Calcio,1,2
+2022-08-26,Serie A,SS Lazio,FC Internazionale Milano,3,1
+2022-08-27,Serie A,Juventus FC,AS Roma,1,1
+2022-08-27,Serie A,US Cremonese,Torino FC,1,2
+2022-08-27,Serie A,Spezia Calcio,US Sassuolo Calcio,2,2
+2022-08-27,Serie A,AC Milan,Bologna FC 1909,2,0
+2022-08-28,Serie A,US Salernitana 1919,UC Sampdoria,4,0
+2022-08-28,Serie A,Hellas Verona FC,Atalanta BC,0,1
+2022-08-28,Serie A,US Lecce,Empoli FC,1,1
+2022-08-28,Serie A,ACF Fiorentina,SSC Napoli,0,0
+2022-08-30,Serie A,US Sassuolo Calcio,AC Milan,0,0
+2022-08-30,Serie A,AS Roma,AC Monza,3,0
+2022-08-30,Serie A,FC Internazionale Milano,US Cremonese,3,1
+2022-08-31,Serie A,Udinese Calcio,ACF Fiorentina,1,0
+2022-08-31,Serie A,UC Sampdoria,SS Lazio,1,1
+2022-08-31,Serie A,Empoli FC,Hellas Verona FC,1,1
+2022-08-31,Serie A,SSC Napoli,US Lecce,1,1
+2022-08-31,Serie A,Juventus FC,Spezia Calcio,2,0
+2022-09-01,Serie A,Bologna FC 1909,US Salernitana 1919,1,1
+2022-09-01,Serie A,Atalanta BC,Torino FC,3,1
+2022-09-03,Serie A,ACF Fiorentina,Juventus FC,1,1
+2022-09-03,Serie A,AC Milan,FC Internazionale Milano,3,2
+2022-09-03,Serie A,SS Lazio,SSC Napoli,1,2
+2022-09-04,Serie A,US Cremonese,US Sassuolo Calcio,0,0
+2022-09-04,Serie A,Spezia Calcio,Bologna FC 1909,2,2
+2022-09-04,Serie A,Hellas Verona FC,UC Sampdoria,2,1
+2022-09-04,Serie A,Udinese Calcio,AS Roma,4,0
+2022-09-05,Serie A,US Salernitana 1919,Empoli FC,2,2
+2022-09-05,Serie A,AC Monza,Atalanta BC,0,2
+2022-09-05,Serie A,Torino FC,US Lecce,1,0
+2022-09-10,Serie A,SSC Napoli,Spezia Calcio,1,0
+2022-09-10,Serie A,FC Internazionale Milano,Torino FC,1,0
+2022-09-10,Serie A,UC Sampdoria,AC Milan,1,2
+2022-09-11,Serie A,Atalanta BC,US Cremonese,1,1
+2022-09-11,Serie A,US Sassuolo Calcio,Udinese Calcio,1,3
+2022-09-11,Serie A,US Lecce,AC Monza,1,1
+2022-09-11,Serie A,Bologna FC 1909,ACF Fiorentina,2,1
+2022-09-11,Serie A,SS Lazio,Hellas Verona FC,2,0
+2022-09-11,Serie A,Juventus FC,US Salernitana 1919,2,2
+2022-09-12,Serie A,Empoli FC,AS Roma,1,2
+2022-09-16,Serie A,US Salernitana 1919,US Lecce,1,2
+2022-09-17,Serie A,Bologna FC 1909,Empoli FC,0,1
+2022-09-17,Serie A,Spezia Calcio,UC Sampdoria,2,1
+2022-09-17,Serie A,Torino FC,US Sassuolo Calcio,0,1
+2022-09-18,Serie A,Udinese Calcio,FC Internazionale Milano,3,1
+2022-09-18,Serie A,AC Monza,Juventus FC,1,0
+2022-09-18,Serie A,ACF Fiorentina,Hellas Verona FC,2,0
+2022-09-18,Serie A,US Cremonese,SS Lazio,0,4
+2022-09-18,Serie A,AS Roma,Atalanta BC,0,1
+2022-09-18,Serie A,AC Milan,SSC Napoli,1,2
+2022-10-01,Serie A,SSC Napoli,Torino FC,3,1
+2022-10-01,Serie A,FC Internazionale Milano,AS Roma,1,2
+2022-10-01,Serie A,Empoli FC,AC Milan,1,3
+2022-10-02,Serie A,SS Lazio,Spezia Calcio,4,0
+2022-10-02,Serie A,US Sassuolo Calcio,US Salernitana 1919,5,0
+2022-10-02,Serie A,UC Sampdoria,AC Monza,0,3
+2022-10-02,Serie A,US Lecce,US Cremonese,1,1
+2022-10-02,Serie A,Atalanta BC,ACF Fiorentina,1,0
+2022-10-02,Serie A,Juventus FC,Bologna FC 1909,3,0
+2022-10-03,Serie A,Hellas Verona FC,Udinese Calcio,1,2
+2022-10-08,Serie A,US Sassuolo Calcio,FC Internazionale Milano,1,2
+2022-10-08,Serie A,AC Milan,Juventus FC,2,0
+2022-10-08,Serie A,Bologna FC 1909,UC Sampdoria,1,1
+2022-10-09,Serie A,Torino FC,Empoli FC,1,1
+2022-10-09,Serie A,Udinese Calcio,Atalanta BC,2,2
+2022-10-09,Serie A,US Salernitana 1919,Hellas Verona FC,2,1
+2022-10-09,Serie A,AC Monza,Spezia Calcio,2,0
+2022-10-09,Serie A,US Cremonese,SSC Napoli,1,4
+2022-10-09,Serie A,AS Roma,US Lecce,2,1
+2022-10-10,Serie A,ACF Fiorentina,SS Lazio,0,4
+2022-10-15,Serie A,Empoli FC,AC Monza,1,0
+2022-10-15,Serie A,Torino FC,Juventus FC,0,1
+2022-10-15,Serie A,Atalanta BC,US Sassuolo Calcio,2,1
+2022-10-16,Serie A,FC Internazionale Milano,US Salernitana 1919,2,0
+2022-10-16,Serie A,SS Lazio,Udinese Calcio,0,0
+2022-10-16,Serie A,Spezia Calcio,US Cremonese,2,2
+2022-10-16,Serie A,SSC Napoli,Bologna FC 1909,3,2
+2022-10-16,Serie A,Hellas Verona FC,AC Milan,1,2
+2022-10-17,Serie A,UC Sampdoria,AS Roma,0,1
+2022-10-17,Serie A,US Lecce,ACF Fiorentina,1,1
+2022-10-21,Serie A,Juventus FC,Empoli FC,4,0
+2022-10-22,Serie A,US Salernitana 1919,Spezia Calcio,1,0
+2022-10-22,Serie A,AC Milan,AC Monza,4,1
+2022-10-22,Serie A,ACF Fiorentina,FC Internazionale Milano,3,4
+2022-10-23,Serie A,Udinese Calcio,Torino FC,1,2
+2022-10-23,Serie A,Bologna FC 1909,US Lecce,2,0
+2022-10-23,Serie A,Atalanta BC,SS Lazio,0,2
+2022-10-23,Serie A,AS Roma,SSC Napoli,0,1
+2022-10-24,Serie A,US Cremonese,UC Sampdoria,0,1
+2022-10-24,Serie A,US Sassuolo Calcio,Hellas Verona FC,2,1
+2022-10-29,Serie A,SSC Napoli,US Sassuolo Calcio,4,0
+2022-10-29,Serie A,US Lecce,Juventus FC,0,1
+2022-10-29,Serie A,FC Internazionale Milano,UC Sampdoria,3,0
+2022-10-30,Serie A,Empoli FC,Atalanta BC,0,2
+2022-10-30,Serie A,Spezia Calcio,ACF Fiorentina,1,2
+2022-10-30,Serie A,US Cremonese,Udinese Calcio,0,0
+2022-10-30,Serie A,SS Lazio,US Salernitana 1919,1,3
+2022-10-30,Serie A,Torino FC,AC Milan,2,1
+2022-10-31,Serie A,Hellas Verona FC,AS Roma,1,3
+2022-10-31,Serie A,AC Monza,Bologna FC 1909,1,2
+2022-11-04,Serie A,Udinese Calcio,US Lecce,1,1
+2022-11-05,Serie A,US Salernitana 1919,US Cremonese,2,2
+2022-11-05,Serie A,Empoli FC,US Sassuolo Calcio,1,0
+2022-11-05,Serie A,Atalanta BC,SSC Napoli,1,2
+2022-11-05,Serie A,AC Milan,Spezia Calcio,2,1
+2022-11-06,Serie A,Bologna FC 1909,Torino FC,2,1
+2022-11-06,Serie A,UC Sampdoria,ACF Fiorentina,0,2
+2022-11-06,Serie A,AC Monza,Hellas Verona FC,2,0
+2022-11-06,Serie A,AS Roma,SS Lazio,0,1
+2022-11-06,Serie A,Juventus FC,FC Internazionale Milano,2,0
+2022-11-08,Serie A,Spezia Calcio,Udinese Calcio,1,1
+2022-11-08,Serie A,SSC Napoli,Empoli FC,2,0
+2022-11-08,Serie A,US Cremonese,AC Milan,0,0
+2022-11-09,Serie A,US Sassuolo Calcio,AS Roma,1,1
+2022-11-09,Serie A,US Lecce,Atalanta BC,2,1
+2022-11-09,Serie A,Torino FC,UC Sampdoria,2,0
+2022-11-09,Serie A,FC Internazionale Milano,Bologna FC 1909,6,1
+2022-11-09,Serie A,ACF Fiorentina,US Salernitana 1919,2,1
+2022-11-10,Serie A,Hellas Verona FC,Juventus FC,0,1
+2022-11-10,Serie A,SS Lazio,AC Monza,1,0
+2022-11-11,Serie A,Empoli FC,US Cremonese,2,0
+2022-11-12,Serie A,SSC Napoli,Udinese Calcio,3,2
+2022-11-12,Serie A,UC Sampdoria,US Lecce,0,2
+2022-11-12,Serie A,Bologna FC 1909,US Sassuolo Calcio,3,0
+2022-11-13,Serie A,Atalanta BC,FC Internazionale Milano,2,3
+2022-11-13,Serie A,AS Roma,Torino FC,1,1
+2022-11-13,Serie A,AC Monza,US Salernitana 1919,3,0
+2022-11-13,Serie A,Hellas Verona FC,Spezia Calcio,1,2
+2022-11-13,Serie A,AC Milan,ACF Fiorentina,2,1
+2022-11-13,Serie A,Juventus FC,SS Lazio,3,0
+2023-01-04,Serie A,US Sassuolo Calcio,UC Sampdoria,1,2
+2023-01-04,Serie A,US Salernitana 1919,AC Milan,1,2
+2023-01-04,Serie A,Torino FC,Hellas Verona FC,1,1
+2023-01-04,Serie A,Spezia Calcio,Atalanta BC,2,2
+2023-01-04,Serie A,AS Roma,Bologna FC 1909,1,0
+2023-01-04,Serie A,US Lecce,SS Lazio,2,1
+2023-01-04,Serie A,ACF Fiorentina,AC Monza,1,1
+2023-01-04,Serie A,US Cremonese,Juventus FC,0,1
+2023-01-04,Serie A,Udinese Calcio,Empoli FC,1,1
+2023-01-04,Serie A,FC Internazionale Milano,SSC Napoli,1,0
+2023-01-07,Serie A,ACF Fiorentina,US Sassuolo Calcio,2,1
+2023-01-07,Serie A,Juventus FC,Udinese Calcio,1,0
+2023-01-07,Serie A,AC Monza,FC Internazionale Milano,2,2
+2023-01-08,Serie A,US Salernitana 1919,Torino FC,1,1
+2023-01-08,Serie A,Spezia Calcio,US Lecce,0,0
+2023-01-08,Serie A,SS Lazio,Empoli FC,2,2
+2023-01-08,Serie A,UC Sampdoria,SSC Napoli,0,2
+2023-01-08,Serie A,AC Milan,AS Roma,2,2
+2023-01-09,Serie A,Hellas Verona FC,US Cremonese,2,0
+2023-01-09,Serie A,Bologna FC 1909,Atalanta BC,1,2
+2023-01-13,Serie A,SSC Napoli,Juventus FC,5,1
+2023-01-14,Serie A,US Cremonese,AC Monza,2,3
+2023-01-14,Serie A,US Lecce,AC Milan,2,2
+2023-01-14,Serie A,FC Internazionale Milano,Hellas Verona FC,1,0
+2023-01-15,Serie A,US Sassuolo Calcio,SS Lazio,0,2
+2023-01-15,Serie A,Udinese Calcio,Bologna FC 1909,1,2
+2023-01-15,Serie A,Torino FC,Spezia Calcio,0,1
+2023-01-15,Serie A,Atalanta BC,US Salernitana 1919,8,2
+2023-01-15,Serie A,AS Roma,ACF Fiorentina,2,0
+2023-01-16,Serie A,Empoli FC,UC Sampdoria,1,0
+2023-01-21,Serie A,Hellas Verona FC,US Lecce,2,0
+2023-01-21,Serie A,US Salernitana 1919,SSC Napoli,0,2
+2023-01-21,Serie A,ACF Fiorentina,Torino FC,0,1
+2023-01-22,Serie A,UC Sampdoria,Udinese Calcio,0,1
+2023-01-22,Serie A,AC Monza,US Sassuolo Calcio,1,1
+2023-01-22,Serie A,Spezia Calcio,AS Roma,0,2
+2023-01-22,Serie A,Juventus FC,Atalanta BC,3,3
+2023-01-23,Serie A,Bologna FC 1909,US Cremonese,1,1
+2023-01-23,Serie A,FC Internazionale Milano,Empoli FC,0,1
+2023-01-24,Serie A,SS Lazio,AC Milan,4,0
+2023-01-27,Serie A,Bologna FC 1909,Spezia Calcio,2,0
+2023-01-27,Serie A,US Lecce,US Salernitana 1919,1,2
+2023-01-28,Serie A,Empoli FC,Torino FC,2,2
+2023-01-28,Serie A,US Cremonese,FC Internazionale Milano,1,2
+2023-01-28,Serie A,Atalanta BC,UC Sampdoria,2,0
+2023-01-29,Serie A,AC Milan,US Sassuolo Calcio,2,5
+2023-01-29,Serie A,Juventus FC,AC Monza,0,2
+2023-01-29,Serie A,SS Lazio,ACF Fiorentina,1,1
+2023-01-29,Serie A,SSC Napoli,AS Roma,2,1
+2023-01-30,Serie A,Udinese Calcio,Hellas Verona FC,1,1
+2023-02-04,Serie A,US Cremonese,US Lecce,0,2
+2023-02-04,Serie A,AS Roma,Empoli FC,2,0
+2023-02-04,Serie A,US Sassuolo Calcio,Atalanta BC,1,0
+2023-02-05,Serie A,Spezia Calcio,SSC Napoli,0,3
+2023-02-05,Serie A,Torino FC,Udinese Calcio,1,0
+2023-02-05,Serie A,ACF Fiorentina,Bologna FC 1909,1,2
+2023-02-05,Serie A,FC Internazionale Milano,AC Milan,1,0
+2023-02-06,Serie A,Hellas Verona FC,SS Lazio,1,1
+2023-02-06,Serie A,AC Monza,UC Sampdoria,2,2
+2023-02-07,Serie A,US Salernitana 1919,Juventus FC,0,3
+2023-02-10,Serie A,AC Milan,Torino FC,1,0
+2023-02-11,Serie A,Empoli FC,Spezia Calcio,2,2
+2023-02-11,Serie A,US Lecce,AS Roma,1,1
+2023-02-11,Serie A,SS Lazio,Atalanta BC,0,2
+2023-02-12,Serie A,Udinese Calcio,US Sassuolo Calcio,2,2
+2023-02-12,Serie A,Bologna FC 1909,AC Monza,0,1
+2023-02-12,Serie A,Juventus FC,ACF Fiorentina,1,0
+2023-02-12,Serie A,SSC Napoli,US Cremonese,3,0
+2023-02-13,Serie A,Hellas Verona FC,US Salernitana 1919,1,0
+2023-02-13,Serie A,UC Sampdoria,FC Internazionale Milano,0,0
+2023-02-17,Serie A,US Sassuolo Calcio,SSC Napoli,0,2
+2023-02-18,Serie A,UC Sampdoria,Bologna FC 1909,1,2
+2023-02-18,Serie A,AC Monza,AC Milan,0,1
+2023-02-18,Serie A,FC Internazionale Milano,Udinese Calcio,3,1
+2023-02-19,Serie A,Atalanta BC,US Lecce,1,2
+2023-02-19,Serie A,US Salernitana 1919,SS Lazio,0,2
+2023-02-19,Serie A,ACF Fiorentina,Empoli FC,1,1
+2023-02-19,Serie A,Spezia Calcio,Juventus FC,0,2
+2023-02-19,Serie A,AS Roma,Hellas Verona FC,1,0
+2023-02-20,Serie A,Torino FC,US Cremonese,2,2
+2023-02-25,Serie A,Empoli FC,SSC Napoli,0,2
+2023-02-25,Serie A,US Lecce,US Sassuolo Calcio,0,1
+2023-02-26,Serie A,Bologna FC 1909,FC Internazionale Milano,1,0
+2023-02-26,Serie A,US Salernitana 1919,AC Monza,3,0
+2023-02-26,Serie A,Udinese Calcio,Spezia Calcio,2,2
+2023-02-26,Serie A,AC Milan,Atalanta BC,2,0
+2023-02-27,Serie A,Hellas Verona FC,ACF Fiorentina,0,3
+2023-02-27,Serie A,SS Lazio,UC Sampdoria,1,0
+2023-02-28,Serie A,US Cremonese,AS Roma,2,1
+2023-02-28,Serie A,Juventus FC,Torino FC,4,2
+2023-03-03,Serie A,SSC Napoli,SS Lazio,0,1
+2023-03-04,Serie A,AC Monza,Empoli FC,2,1
+2023-03-04,Serie A,Atalanta BC,Udinese Calcio,0,0
+2023-03-04,Serie A,ACF Fiorentina,AC Milan,2,1
+2023-03-05,Serie A,Spezia Calcio,Hellas Verona FC,0,0
+2023-03-05,Serie A,UC Sampdoria,US Salernitana 1919,0,0
+2023-03-05,Serie A,FC Internazionale Milano,US Lecce,2,0
+2023-03-05,Serie A,AS Roma,Juventus FC,1,0
+2023-03-06,Serie A,US Sassuolo Calcio,US Cremonese,3,2
+2023-03-06,Serie A,Torino FC,Bologna FC 1909,1,0
+2023-03-10,Serie A,Spezia Calcio,FC Internazionale Milano,2,1
+2023-03-11,Serie A,Empoli FC,Udinese Calcio,0,1
+2023-03-11,Serie A,SSC Napoli,Atalanta BC,2,0
+2023-03-11,Serie A,Bologna FC 1909,SS Lazio,0,0
+2023-03-12,Serie A,US Lecce,Torino FC,0,2
+2023-03-12,Serie A,Hellas Verona FC,AC Monza,1,1
+2023-03-12,Serie A,US Cremonese,ACF Fiorentina,0,2
+2023-03-12,Serie A,AS Roma,US Sassuolo Calcio,3,4
+2023-03-12,Serie A,Juventus FC,UC Sampdoria,4,2
+2023-03-13,Serie A,AC Milan,US Salernitana 1919,1,1
+2023-03-17,Serie A,US Sassuolo Calcio,Spezia Calcio,1,0
+2023-03-17,Serie A,Atalanta BC,Empoli FC,2,1
+2023-03-18,Serie A,AC Monza,US Cremonese,1,1
+2023-03-18,Serie A,US Salernitana 1919,Bologna FC 1909,2,2
+2023-03-18,Serie A,Udinese Calcio,AC Milan,3,1
+2023-03-19,Serie A,UC Sampdoria,Hellas Verona FC,3,1
+2023-03-19,Serie A,Torino FC,SSC Napoli,0,4
+2023-03-19,Serie A,ACF Fiorentina,US Lecce,1,0
+2023-03-19,Serie A,SS Lazio,AS Roma,1,0
+2023-03-19,Serie A,FC Internazionale Milano,Juventus FC,0,1
+2023-04-01,Serie A,US Cremonese,Atalanta BC,1,3
+2023-04-01,Serie A,FC Internazionale Milano,ACF Fiorentina,0,1
+2023-04-01,Serie A,Juventus FC,Hellas Verona FC,1,0
+2023-04-02,Serie A,Bologna FC 1909,Udinese Calcio,3,0
+2023-04-02,Serie A,Spezia Calcio,US Salernitana 1919,1,1
+2023-04-02,Serie A,AC Monza,SS Lazio,0,2
+2023-04-02,Serie A,AS Roma,UC Sampdoria,3,0
+2023-04-02,Serie A,SSC Napoli,AC Milan,0,4
+2023-04-03,Serie A,Empoli FC,US Lecce,1,0
+2023-04-03,Serie A,US Sassuolo Calcio,Torino FC,1,1
+2023-04-07,Serie A,US Salernitana 1919,FC Internazionale Milano,1,1
+2023-04-07,Serie A,US Lecce,SSC Napoli,1,2
+2023-04-07,Serie A,AC Milan,Empoli FC,0,0
+2023-04-08,Serie A,Udinese Calcio,AC Monza,2,2
+2023-04-08,Serie A,ACF Fiorentina,Spezia Calcio,1,1
+2023-04-08,Serie A,UC Sampdoria,US Cremonese,2,3
+2023-04-08,Serie A,Atalanta BC,Bologna FC 1909,0,2
+2023-04-08,Serie A,Torino FC,AS Roma,0,1
+2023-04-08,Serie A,Hellas Verona FC,US Sassuolo Calcio,2,1
+2023-04-08,Serie A,SS Lazio,Juventus FC,2,1
+2023-04-14,Serie A,US Cremonese,Empoli FC,1,0
+2023-04-14,Serie A,Spezia Calcio,SS Lazio,0,3
+2023-04-15,Serie A,Bologna FC 1909,AC Milan,1,1
+2023-04-15,Serie A,SSC Napoli,Hellas Verona FC,0,0
+2023-04-15,Serie A,FC Internazionale Milano,AC Monza,0,1
+2023-04-16,Serie A,US Lecce,UC Sampdoria,1,1
+2023-04-16,Serie A,Torino FC,US Salernitana 1919,1,1
+2023-04-16,Serie A,US Sassuolo Calcio,Juventus FC,1,0
+2023-04-16,Serie A,AS Roma,Udinese Calcio,3,0
+2023-04-17,Serie A,ACF Fiorentina,Atalanta BC,1,1
+2023-04-21,Serie A,Hellas Verona FC,Bologna FC 1909,2,1
+2023-04-22,Serie A,US Salernitana 1919,US Sassuolo Calcio,3,0
+2023-04-22,Serie A,SS Lazio,Torino FC,0,1
+2023-04-22,Serie A,UC Sampdoria,Spezia Calcio,1,1
+2023-04-23,Serie A,Empoli FC,FC Internazionale Milano,0,3
+2023-04-23,Serie A,Udinese Calcio,US Cremonese,3,0
+2023-04-23,Serie A,AC Monza,ACF Fiorentina,3,2
+2023-04-23,Serie A,AC Milan,US Lecce,2,0
+2023-04-23,Serie A,Juventus FC,SSC Napoli,0,1
+2023-04-24,Serie A,Atalanta BC,AS Roma,3,1
+2023-04-28,Serie A,US Lecce,Udinese Calcio,1,0
+2023-04-28,Serie A,Spezia Calcio,AC Monza,0,2
+2023-04-29,Serie A,AS Roma,AC Milan,1,1
+2023-04-29,Serie A,Torino FC,Atalanta BC,1,2
+2023-04-30,Serie A,FC Internazionale Milano,SS Lazio,3,1
+2023-04-30,Serie A,US Sassuolo Calcio,Empoli FC,2,1
+2023-04-30,Serie A,SSC Napoli,US Salernitana 1919,1,1
+2023-04-30,Serie A,US Cremonese,Hellas Verona FC,1,1
+2023-04-30,Serie A,ACF Fiorentina,UC Sampdoria,5,0
+2023-04-30,Serie A,Bologna FC 1909,Juventus FC,1,1
+2023-05-03,Serie A,UC Sampdoria,Torino FC,0,2
+2023-05-03,Serie A,US Salernitana 1919,ACF Fiorentina,3,3
+2023-05-03,Serie A,Juventus FC,US Lecce,2,1
+2023-05-03,Serie A,Atalanta BC,Spezia Calcio,3,2
+2023-05-03,Serie A,AC Monza,AS Roma,1,1
+2023-05-03,Serie A,AC Milan,US Cremonese,1,1
+2023-05-03,Serie A,SS Lazio,US Sassuolo Calcio,2,0
+2023-05-03,Serie A,Hellas Verona FC,FC Internazionale Milano,0,6
+2023-05-04,Serie A,Udinese Calcio,SSC Napoli,1,1
+2023-05-04,Serie A,Empoli FC,Bologna FC 1909,3,1
+2023-05-06,Serie A,AC Milan,SS Lazio,2,0
+2023-05-06,Serie A,AS Roma,FC Internazionale Milano,0,2
+2023-05-06,Serie A,US Cremonese,Spezia Calcio,2,0
+2023-05-07,Serie A,Atalanta BC,Juventus FC,0,2
+2023-05-07,Serie A,Torino FC,AC Monza,1,1
+2023-05-07,Serie A,SSC Napoli,ACF Fiorentina,1,0
+2023-05-07,Serie A,US Lecce,Hellas Verona FC,0,1
+2023-05-08,Serie A,Udinese Calcio,UC Sampdoria,2,0
+2023-05-08,Serie A,Empoli FC,US Salernitana 1919,2,1
+2023-05-08,Serie A,US Sassuolo Calcio,Bologna FC 1909,1,1
+2023-05-12,Serie A,SS Lazio,US Lecce,2,2
+2023-05-13,Serie A,US Salernitana 1919,Atalanta BC,1,0
+2023-05-13,Serie A,Spezia Calcio,AC Milan,2,0
+2023-05-13,Serie A,FC Internazionale Milano,US Sassuolo Calcio,4,2
+2023-05-14,Serie A,Hellas Verona FC,Torino FC,0,1
+2023-05-14,Serie A,AC Monza,SSC Napoli,2,0
+2023-05-14,Serie A,ACF Fiorentina,Udinese Calcio,2,0
+2023-05-14,Serie A,Bologna FC 1909,AS Roma,0,0
+2023-05-14,Serie A,Juventus FC,US Cremonese,2,0
+2023-05-15,Serie A,UC Sampdoria,Empoli FC,1,1
+2023-05-19,Serie A,US Sassuolo Calcio,AC Monza,1,2
+2023-05-20,Serie A,US Cremonese,Bologna FC 1909,1,5
+2023-05-20,Serie A,Atalanta BC,Hellas Verona FC,3,1
+2023-05-20,Serie A,AC Milan,UC Sampdoria,5,1
+2023-05-21,Serie A,US Lecce,Spezia Calcio,0,0
+2023-05-21,Serie A,Torino FC,ACF Fiorentina,1,1
+2023-05-21,Serie A,SSC Napoli,FC Internazionale Milano,3,1
+2023-05-21,Serie A,Udinese Calcio,SS Lazio,0,1
+2023-05-22,Serie A,AS Roma,US Salernitana 1919,2,2
+2023-05-22,Serie A,Empoli FC,Juventus FC,4,1
+2023-05-26,Serie A,UC Sampdoria,US Sassuolo Calcio,2,2
+2023-05-27,Serie A,Spezia Calcio,Torino FC,0,4
+2023-05-27,Serie A,US Salernitana 1919,Udinese Calcio,3,2
+2023-05-27,Serie A,ACF Fiorentina,AS Roma,2,1
+2023-05-27,Serie A,FC Internazionale Milano,Atalanta BC,3,2
+2023-05-28,Serie A,Hellas Verona FC,Empoli FC,1,1
+2023-05-28,Serie A,AC Monza,US Lecce,0,1
+2023-05-28,Serie A,Bologna FC 1909,SSC Napoli,2,2
+2023-05-28,Serie A,SS Lazio,US Cremonese,3,2
+2023-05-28,Serie A,Juventus FC,AC Milan,0,1
+2023-06-02,Serie A,US Sassuolo Calcio,ACF Fiorentina,1,3
+2023-06-03,Serie A,Torino FC,FC Internazionale Milano,0,1
+2023-06-03,Serie A,Empoli FC,SS Lazio,0,2
+2023-06-03,Serie A,US Cremonese,US Salernitana 1919,2,0
+2023-06-04,Serie A,SSC Napoli,UC Sampdoria,2,0
+2023-06-04,Serie A,Udinese Calcio,Juventus FC,0,1
+2023-06-04,Serie A,AS Roma,Spezia Calcio,2,1
+2023-06-04,Serie A,AC Milan,Hellas Verona FC,3,1
+2023-06-04,Serie A,US Lecce,Bologna FC 1909,2,3
+2023-06-04,Serie A,Atalanta BC,AC Monza,5,2
 2022-08-05,Ligue 1,Olympique Lyonnais,AC Ajaccio,2,1
 2022-08-06,Ligue 1,RC Strasbourg,AS Monaco,1,2
 2022-08-06,Ligue 1,Clermont Foot 63,Paris Saint-Germain,0,5

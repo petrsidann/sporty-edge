@@ -40,21 +40,21 @@ def _opp(market: str, pick: str, prob: float, odds: float,
 # --------------------------------------------------------------------- #
 
 def test_hit_moneyline_needs_prob_and_odds_cap() -> None:
-    h2h = {"EVT1": {"Home": _opp("1X2", "Home", 0.85, 1.60)}}
+    h2h = {"EVT1": {"Home": _opp("1X2", "Home", 0.85, 1.45)}}
     assert len(_hit_candidates(h2h, {})) == 1
 
-    h2h = {"EVT1": {"Home": _opp("1X2", "Home", 0.85, 2.80)}}  # odds above band
+    h2h = {"EVT1": {"Home": _opp("1X2", "Home", 0.85, 1.70)}}  # odds too high
     assert _hit_candidates(h2h, {}) == []
 
-    h2h = {"EVT1": {"Home": _opp("1X2", "Home", 0.70, 1.60)}}  # prob too low
+    h2h = {"EVT1": {"Home": _opp("1X2", "Home", 0.70, 1.45)}}  # prob too low
     assert _hit_candidates(h2h, {}) == []
 
 
 def test_hit_totals_only_on_the_low_and_high_lines() -> None:
     totals = {"EVT1": [
-        _opp("O/U 0.5", "Over", 0.85, 1.80),
-        _opp("O/U 2.5", "Over", 0.90, 1.90),   # 2.5 is NOT a HIT line
-        _opp("O/U 4.5", "Under", 0.82, 1.90),
+        _opp("O/U 0.5", "Over", 0.85, 1.30),
+        _opp("O/U 2.5", "Over", 0.90, 1.45),   # 2.5 is NOT a HIT line
+        _opp("O/U 4.5", "Under", 0.82, 1.35),
     ]}
     hits = _hit_candidates({}, totals)
     assert {(o.selection.market, o.selection.selection) for o, _ in hits} == {
@@ -63,18 +63,18 @@ def test_hit_totals_only_on_the_low_and_high_lines() -> None:
 
 def test_hit_double_chance_derived_from_one_x_two() -> None:
     h2h = {"EVT1": {
-        "Home": _opp("1X2", "Home", 0.45, 2.20),
-        "Draw": _opp("1X2", "Draw", 0.16, 5.50),
-        "Away": _opp("1X2", "Away", 0.39, 2.56),
+        "Home": _opp("1X2", "Home", 0.70, 1.40),
+        "Draw": _opp("1X2", "Draw", 0.20, 4.50),
+        "Away": _opp("1X2", "Away", 0.10, 8.00),
     }}
     dcs = _dc_candidates(h2h)
     by_pick = {o.selection.selection: o for o, _ in dcs}
-    assert set(by_pick) == {"1X"}       # X2=0.55 below floor, 12 derived>2.60
+    assert set(by_pick) == {"1X", "12"}       # X2 = 0.30, below the floor
     one_x = by_pick["1X"]
-    assert one_x.selection.model_probability == pytest.approx(0.61)
-    # derived reference = 1/0.61 * 0.95, within the concentrated-value band
-    assert one_x.decimal_odds == pytest.approx((1 / 0.61) * 0.95, abs=1e-3)
-    assert 1.55 <= one_x.decimal_odds <= 2.60
+    assert one_x.selection.model_probability == pytest.approx(0.90)
+    # derived reference = 1/0.90 * 0.95, conservatively below fair
+    assert one_x.decimal_odds == pytest.approx((1 / 0.90) * 0.95, abs=1e-3)
+    assert one_x.decimal_odds <= 1.60
 
 
 def test_no_double_chance_without_a_draw_market() -> None:

@@ -311,24 +311,26 @@ class ActionSettings:
 # HIT-RATE lane + model blending + calibration
 # --------------------------------------------------------------------------- #
 
-#: Master switch for the [HIT] lane in smart_picks.py.  Set to False under
-#: Phase 1b — the ledger post-mortem proved the 1.20-1.60 odds band bleeds
-#: (-44.7% ROI, 12 bets).  Concentrated Value only keeps the 1.55-2.60 band.
-HIT_RATE_MODE: bool = False
+#: Master switch for the [HIT] lane in smart_picks.py.  True = the 8-pick
+#: session leads with every pick that qualifies (probability >= 0.80, odds
+#: <= 1.60), remainder filled by the existing WINNER/TOTALS lanes.
+HIT_RATE_MODE: bool = True
 
 
 @dataclass(frozen=True)
 class HitRateSettings:
-    """[HIT] lane — DEPRECATED by Phase 1b (concentrated value pivot).
+    """[HIT] lane — the high-win-rate goal, stated honestly.
 
-    The ledger post-mortem proved the HIT lane (prob>=0.80, odds<=1.60) —
-    i.e. the 1.20-1.60 band — to be the single worst slice (-44.7% ROI).
-    It is retained for back-compat / unit-test imports only and is never
-    reached by smart_picks.main() because HIT_RATE_MODE=False.
+    A pick qualifies ONLY when its (blended) win probability is >= min_prob
+    AND the best available price is <= max_odds.  Eligible markets: the
+    low-scoring/high-scoring totals ``lines``, moneylines whose consensus is
+    strong, and double chance (derived from the 1X2 consensus).
 
-    HONESTY CONTRACT (preserved): a high hit rate is NOT a profit guarantee.
-    At odds 1.10-1.55 a 60-70% real-world hit rate still loses money; CLV —
-    not the hit rate — decides whether any lane has real edge.
+    HONESTY CONTRACT: a high hit rate is NOT a profit guarantee.  At odds
+    1.10-1.55 a 60-70% real-world hit rate still loses money; the ledger
+    post-mortem already showed the 1.20-1.60 odds band bleeding at a 60%
+    win rate.  Every pick prints its TRUE probability, and CLV — not the
+    hit rate — decides whether this lane has real edge.
     """
 
     min_prob: float = 0.80
@@ -347,10 +349,6 @@ class HitRateSettings:
         if self.stake_mult <= 0.0:
             raise ValueError("stake_mult must be positive.")
 
-
-#: Strategy Pivot: Concentrated Value Odds Band Gate (Phase 1a)
-MIN_ODDS_TAKEN: float = 1.55
-MAX_ODDS_TAKEN: float = 2.60
 
 #: Team-strength model blending (models/strength_engine.py).  When BOTH teams
 #: of a match exist in data/history.csv the pick probability becomes

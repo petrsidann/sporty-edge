@@ -16,5 +16,4 @@ def _run(script: str) -> None:
 if __name__ == "__main__":
     _run("fetch_history.py")        # soccer: 6 leagues, 3 seasons
     _run("fetch_more_history.py")   # tennis, NBA, NFL, MLB
-    _run("key_audit.py")            # Phase 2c: write data/credits_summary.json
     print("\nHistory refresh complete. Workflow commits data/ automatically.")

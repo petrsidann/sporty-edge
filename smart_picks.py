@@ -1,10 +1,8 @@
-"""smart_picks.py (OWNER-SPEC FINAL - Phase 1b Concentrated Value)
-Per-session sport lists + per-session targets (5/5/8/5). All picks settle
-before the session window ends. HIT lane REMOVED - the ledger proved the
-1.20-1.60 odds band bleeds (-44.7% ROI); only the 1.55-2.60 band survives.
-Odds-band gate -> WINNER / TOTALS pivot on tight matches -> DC derived.
-Flat 1.0u stake per pick (tiers removed) for clean CLV measurement.
-Hard cap = session target minus already-logged-this-session.
+"""smart_picks.py (OWNER-SPEC FINAL)
+Per-session sport lists + per-session targets (10/10/25/10). All picks
+settle before the session window ends. Lanes: HIT first (prob>=0.80),
+then WINNER / TOTALS pivot on tight matches / DC derived. Hard cap =
+session target minus already-logged-this-session (fixes over-fill).
 Team-strength + log5 blending tagged [MODEL]. Telegram every pick.
 """
 
@@ -24,13 +22,12 @@ try:
 except Exception:
     pass
 
-from feeds.oddsapi import OddsApiFeed, get_last_credits
+from feeds.oddsapi import OddsApiFeed
 from notify.telegram import TelegramNotifier
 from config.settings import (
     CALIBRATION_SETTINGS,
     DC_DERIVED_MARGIN,
-    MAX_ODDS_TAKEN,
-    MIN_ODDS_TAKEN,
+    HIT_RATE_SETTINGS,
     MIN_PLATFORM_SAMPLE,
     MODEL_BLEND_MODEL_WEIGHT,
     N_PICKS,
@@ -208,20 +205,13 @@ def _kickoff_dt(ts: str) -> datetime | None:
 
 
 def _tier(prob: float) -> tuple[str, float]:
-    """Phase 1c: flat stakes — concentration replaces tiered aggression.
-
-    Every accepted pick stakes a flat 1.0u.  With fewer, sharper bets the
-    CLV signal is not polluted by stake variance; Tier labels are kept as
-    descriptive read-outs only (they no longer multiply the stake).
-    """
-    # Descriptive label only — never scales the stake.
     if prob >= 0.80:
-        return "STRONG", 1.00
+        return "HIT", 1.00
     if prob >= 0.65:
-        return "WARM", 1.00
+        return "WARM", 0.50
     if prob >= 0.55:
-        return "STEADY", 1.00
-    return "SPICY", 1.00
+        return "STEADY", 0.35
+    return "SPICY", 0.15
 
 
 def _blend(league: str, home: str, away: str, p_home: float, p_away: float):
@@ -304,7 +294,7 @@ def _blend_with_model(
 
 
 def _dc_candidates(h2h: dict) -> list[tuple[BetOpportunity, str]]:
-    """ouble-chance candidates DERIVED from the 1X2 consensus.
+    """Double-chance candidates DERIVED from the 1X2 consensus.
 
     The feed carries no DC quotes, so the reference price is derived from
     the devigged consensus: ref = 1/p * (1 - DC_DERIVED_MARGIN), then the
@@ -319,16 +309,16 @@ def _dc_candidates(h2h: dict) -> list[tuple[BetOpportunity, str]]:
             continue  # 2-way sport: no double chance exists
         for pick, opps in (("1X", (h, d)), ("X2", (d, a)), ("12", (h, a))):
             p = sum(o.selection.model_probability for o in opps)
-            if not (0.60 - 1e-9 <= p <= 0.995):
+            if not (HIT_RATE_SETTINGS.min_prob - 1e-9 <= p <= 0.995):
                 continue
             derived = (1.0 / p) * (1.0 - DC_DERIVED_MARGIN)
-            if not (MIN_ODDS_TAKEN - 1e-9 <= derived <= MAX_ODDS_TAKEN + 1e-9):
+            if derived > HIT_RATE_SETTINGS.max_odds + 1e-9:
                 continue
             sel = dc_replace(opps[0].selection, market="DC", selection=pick,
                              model_probability=p)
             out.append((comparator.evaluate(
                 sel, [OddsQuote(book="derived-1X2", decimal_odds=round(derived, 3))]
-            ), "DC"))
+            ), "HIT"))
     return out
 
 
@@ -341,17 +331,16 @@ def _hit_candidates(h2h: dict, totals: dict) -> list[tuple[BetOpportunity, str]]
     Thresholds tolerate a 1e-9 float wobble (0.70 + 0.10 < 0.80 in binary).
     """
     out: list[tuple[BetOpportunity, str]] = []
-    p_min = 0.80 - 1e-9
-    o_lo = MIN_ODDS_TAKEN - 1e-9
-    o_hi = MAX_ODDS_TAKEN + 1e-9
+    p_min = HIT_RATE_SETTINGS.min_prob - 1e-9
+    o_max = HIT_RATE_SETTINGS.max_odds + 1e-9
 
     for sides in h2h.values():
         for opp in sides.values():
             if opp.selection.model_probability >= p_min \
-                    and o_lo <= opp.decimal_odds <= o_hi:
+                    and opp.decimal_odds <= o_max:
                 out.append((opp, "HIT"))
 
-    hit_lines = (0.5, 1.5, 4.5, 5.5)
+    hit_lines = set(HIT_RATE_SETTINGS.lines)
     for lines in totals.values():
         for opp in lines:
             market = opp.selection.market.upper()
@@ -360,7 +349,7 @@ def _hit_candidates(h2h: dict, totals: dict) -> list[tuple[BetOpportunity, str]]
             except (ValueError, IndexError):
                 continue
             if line in hit_lines and opp.selection.model_probability >= p_min \
-                    and o_lo <= opp.decimal_odds <= o_hi:
+                    and opp.decimal_odds <= o_max:
                 out.append((opp, "HIT"))
 
     out.extend(_dc_candidates(h2h))
@@ -431,8 +420,7 @@ def _platform_performance(logger: BetLogger) -> dict[str, dict]:
 
 
 def main() -> None:
-    # Phase 1c: flat 1.0u per pick — concentration replaces tiered aggression.
-    base_stake = 1.0
+    base_stake = 0.5
     if "--stake" in sys.argv:
         i = sys.argv.index("--stake")
         try:
@@ -551,17 +539,11 @@ def main() -> None:
                     candidates.append((comparator.evaluate(sel, [OddsQuote(
                         book="derived", decimal_odds=taken)]), "DC"))
 
-        seen: set = set()
+    seen: set = set()
     fresh: list[tuple[BetOpportunity, str]] = []
     for o, lane in candidates:
         k = (o.selection.match_id, o.selection.market, o.selection.selection)
         if k in pend_keys or o.selection.match_id in pend_matches or k in seen:
-            continue  # dedupe: one bet per match / per leg
-        # Phase 1a: ODDS-BAND GATE — the ledger proved only the 1.55-2.60
-        # taken-odds band is profitable (+9.8% ROI).  Anything outside it is
-        # rejected, including the former HIT lane (prob>=0.80, odds<=1.60)
-        # whose 1.20-1.60 band bled at -44.7%.
-        if not (MIN_ODDS_TAKEN <= o.decimal_odds <= MAX_ODDS_TAKEN):
             continue
         seen.add(k)
         fresh.append((o, lane))
@@ -608,8 +590,7 @@ def main() -> None:
                f"PICK: {_anchor(leg.market, leg.selection, leg.match_label)}\n"
                f"Win prob {prob:.0%} | take {leg.decimal_odds:.2f} | "
                f"place if app >= {floor}\n"
-               f"Stake {eff:.2f}u | {bet_id}\n"
-               f"credits ~{get_last_credits()}")
+               f"Stake {eff:.2f}u | {bet_id}")
         print(msg + "\n")
         if tg.is_configured:
             tg.send(msg)

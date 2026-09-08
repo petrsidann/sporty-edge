@@ -27,6 +27,20 @@ from __future__ import annotations
 
 from typing import Sequence
 
+# Phase 4a: per-odds-band calibration bands (taken-odds from ledger legs).
+# These mirror the ledger post-mortem's finding that only the 1.55-2.60 band
+# is profitable.  The calibration report now tracks each band's ROI so the
+# owner can see whether the concentrated-value pivot holds up over time.
+ODDS_BAND_EDGES: tuple[float, ...] = (1.10, 1.55, 2.60, 99.99)
+ODDS_BAND_LABELS: tuple[str, ...] = ("1.10-1.55", "1.55-2.60", "2.60+")
+
+# Phase 4b: recommendation thresholds.
+_STOP_ROI: float = -0.10      # band ROI < -10% over >=25 settled => stop
+_SHRINK_ROI_FLOOR: float = -0.10
+_SHRINK_ROI_CEIL: float = -0.05  # -10% to -5% => shrink 50%
+_MIN_BAND_SAMPLE: int = 25    # settled W/L bets before a recommendation acts
+
+# Probability-bucket calibration (stated vs actual win rate).
 BUCKET_EDGES: tuple[float, ...] = (0.50, 0.60, 0.70, 0.80, 0.90, 1.01)
 MIN_SAMPLE = 20  # settled W/L bets per bucket before a delta is actionable
 
@@ -159,6 +173,105 @@ def brier_score(records: Sequence[dict]) -> float | None:
     return (total / n) if n else None
 
 
+    return (total / n) if n else None
+
+
+def _odds_band_for(odds: float) -> str:
+    """Map a taken-odds value to its band label."""
+    for lo, hi, label in zip(
+        ODDS_BAND_EDGES, ODDS_BAND_EDGES[1:], ODDS_BAND_LABELS
+    ):
+        if lo <= odds < hi:
+            return label
+    return ODDS_BAND_LABELS[-1]
+
+
+def odds_band_report(records: Sequence[dict]) -> list[dict]:
+    """Phase 4a: per-odds-band calibration table.
+
+    Groups every settled (W/L) bet by its taken odds (first leg's
+    ``decimal_odds``) into the configured bands and computes wins, staked,
+    profit and ROI per band.  VOIDs are excluded.  Returns one row per band:
+    ``{\"band\", \"n\", \"wins\", \"staked\", \"profit\", \"roi\"}``.
+    """
+    bands: dict[str, dict] = {}
+    for label in ODDS_BAND_LABELS:
+        bands[label] = {"band": label, "n": 0, "wins": 0,
+                        "staked": 0.0, "profit": 0.0}
+
+    for rec in records:
+        status = str(rec.get("status") or "")
+        if status not in ("WIN", "LOSS"):
+            continue
+        legs = rec.get("legs") or []
+        if not legs:
+            continue
+        odds = legs[0].get("decimal_odds")
+        if not isinstance(odds, (int, float)) or odds <= 1.0:
+            continue
+        band = bands[_odds_band_for(float(odds))]
+        band["n"] += 1
+        band["staked"] += float(rec.get("stake_units") or 0.0)
+        band["profit"] += float(rec.get("profit_units") or 0.0)
+        if status == "WIN":
+            band["wins"] += 1
+
+    rows: list[dict] = []
+    for label in ODDS_BAND_LABELS:
+        b = bands[label]
+        roi = (b["profit"] / b["staked"]) if b["staked"] > 0 else None
+        rows.append({**b, "roi": roi})
+    return rows
+
+
+def band_recommendation(roi: float | None, n: int) -> str:
+    """Phase 4b: one-line recommendation per odds band.
+
+    Rules (from the owner's ledger post-mortem):
+        - band ROI < -10% over >=25 settled => \"stop\"
+        - -10% to -5% => \"shrink 50%\"
+        - positive (or insufficient data) => \"continue\"
+    """
+    if roi is None or n < _MIN_BAND_SAMPLE:
+        return "continue (insufficient data)"
+    if roi < _STOP_ROI:
+        return "stop"
+    if _SHRINK_ROI_FLOOR <= roi < _SHRINK_ROI_CEIL:
+        return "shrink 50%"
+    return "continue"
+
+
+def print_odds_band_calibration(records: Sequence[dict]) -> list[dict]:
+    """Print the per-odds-band table with one-line recommendations.
+    Returns the rows for programmatic use (e.g. session_cycle)."""
+    rows = odds_band_report(records)
+    print("\n  PER-ODDS-BAND CALIBRATION | taken-odds vs ROI per band")
+    print("  " + "-" * 60)
+    print(f"  {'band':<12}{'n':>5}{'wins':>6}{'staked':>9}"
+          f"{'profit':>9}{'roi':>9}  recommendation")
+    print("  " + "-" * 60)
+    for r in rows:
+        roi_s = f"{r['roi'] * 100:+.1f}%" if r["roi"] is not None else "  n/a"
+        print(f"  {r['band']:<12}{r['n']:>5}{r['wins']:>6}"
+              f"{r['staked']:>9.2f}{r['profit']:>9.2f}"
+              f"{roi_s:>9}  {band_recommendation(r['roi'], r['n'])}")
+    return rows
+
+
+def calibration_one_liner(records: Sequence[dict]) -> str:
+    """Phase 4c: a single line summarising the calibration recommendation
+    for the active (1.55-2.60) band — intended for the daily Telegram."""
+    rows = odds_band_report(records)
+    active = next((r for r in rows if r["band"] == "1.55-2.60"), None)
+    if active is None or active["roi"] is None:
+        return "calibration: 1.55-2.60 band — insufficient data, continue"
+    rec = band_recommendation(active["roi"], active["n"])
+    return (
+        f"calibration 1.55-2.60 band: n={active['n']} "
+        f"ROI={active['roi'] * 100:+.1f}% -> {rec}"
+    )
+
+
 def main() -> None:
     from utils.logger import BetLogger
 
@@ -171,6 +284,8 @@ def main() -> None:
     if bs is not None:
         print(f"\n  Brier score: {bs:.4f}  (0 = perfect, 0.25 = coin-flip "
               f"baseline; lower is better)")
+    print_odds_band_calibration(records)
+    print(f"\n  Daily signal: {calibration_one_liner(records)}")
     print("  Shrinkage option: CALIBRATION_SETTINGS.shrinkage_factor in "
           "config/settings.py (1.0 = off).")
 

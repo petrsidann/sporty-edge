@@ -90,6 +90,19 @@ def main() -> None:
     # Daily data refresh (once per UTC day, flag in session_state.json).
     _daily_refresh(state)
 
+    # Phase 4c: on the 1st cycle of each UTC day, print and Telegram the
+    # calibration one-liner for the active 1.55-2.60 band.
+    if state.get("calibration_date") != _utc_today():
+        from utils.calibration import calibration_one_liner
+        _cal_line = calibration_one_liner(lg._read_all())
+        print(f"[cycle] {_cal_line}")
+        from notify.telegram import TelegramNotifier as _TgCal
+        _tg_cal = _TgCal()
+        if _tg_cal.is_configured:
+            _tg_cal.send(f"📊 Daily calibration: {_cal_line}")
+        state["calibration_date"] = _utc_today()
+        _save_state(state)
+
     print(f"[cycle] {clock_line()}")
     _run("settle_auto.py")
 

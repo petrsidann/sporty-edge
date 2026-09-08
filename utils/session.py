@@ -20,10 +20,10 @@ class Session:
 
 
 SESSIONS = (
-    Session("S1", "\U0001F305", 7, 10, 10),
-    Session("S2", "\u2600", 12, 15, 10),
-    Session("S3", "\U0001F31F", 17, 23, 25),
-    Session("S4", "\U0001F319", 0, 3, 10),
+    Session("S1", "\U0001F305", 7, 10, 5),
+    Session("S2", "\u2600", 12, 15, 5),
+    Session("S3", "\U0001F31F", 17, 23, 8),
+    Session("S4", "\U0001F319", 0, 3, 5),
 )
 
 

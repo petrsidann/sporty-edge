@@ -145,6 +145,21 @@ def _leg_result(leg: dict, score: dict) -> str | None:
             return "WIN" if total > line else "LOSS"
         if sel == "Under":
             return "WIN" if total < line else "LOSS"
+    # Phase 3b: SPREAD settlement.  Market format "SPREAD {line}" where the
+    # line is the handicap applied to the selected team (negative = favorite).
+    # The selected team's actual margin must exceed -line to win.
+    if m.startswith("SPREAD"):
+        try:
+            line = float(m.split()[-1])
+        except (ValueError, IndexError):
+            return None  # line unparseable -> handled by auto-VOID path
+        if sel == "Home":
+            margin = h - a
+        elif sel == "Away":
+            margin = a - h
+        else:
+            return None
+        return "WIN" if margin > -line else "LOSS"
     return None
 
 
@@ -187,6 +202,33 @@ def main() -> None:
             continue
         if any(r is None for r in results):
             ambiguous += 1
+
+    # Phase 3c: auto-VOID any PENDING bet older than 7 days whose score can
+    # no longer be resolved (zombie cleanup — the ledger must never accumulate
+    # stale entries).  Notifies Telegram so the owner sees the write-off.
+    from datetime import timedelta as _td
+    from notify.telegram import TelegramNotifier as _TgNotifier
+    _now = datetime.now(timezone.utc)
+    _voided: list[str] = []
+    for rec in lg.pending():
+        logged = rec.get("logged_at", "")
+        try:
+            _ts = datetime.fromisoformat(str(logged).replace("Z", "+00:00"))
+            if _ts.tzinfo is None:
+                _ts = _ts.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            continue
+        if (_now - _ts) > _td(days=7):
+            lg.settle(rec["bet_id"], "VOID")
+            _voided.append(rec["bet_id"])
+            print(f"  {rec['bet_id']} -> VOID (auto, >7d stale)")
+    if _voided:
+        _tg = _TgNotifier()
+        if _tg.is_configured:
+            _tg.send(
+                f"⚠️ Auto-VOID {len(_voided)} stale bet(s) (>7d, no "
+                f"resolvable score): {', '.join(_voided)}"
+            )
 
     m = lg.metrics()
     print(f"\n  auto-settled {auto} | awaiting scores: {ambiguous} | "

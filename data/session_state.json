@@ -1,7 +1,14 @@
 {
   "utc_date": "2026-09-08",
+<<<<<<< HEAD
   "session": "S2",
   "covered_ping": "",
   "history_date": "2026-09-08",
+=======
+  "session": "S3",
+  "covered_ping": "",
+  "history_date": "2026-09-08",
+  "calibration_date": "2026-09-08",
+>>>>>>> final-build
   "heartbeat_date": "2026-09-08"
 }

@@ -19,8 +19,9 @@ from utils.session import clock_line, detect
 from utils.heartbeat import Heartbeat
 
 STATE_PATH = Path("data") / "session_state.json"
-TARGET_MIN = 10
-TARGET_MAX = 25
+# Phase 1b: reduced targets (5/5/8/5) - concentrated value pivot
+TARGET_MIN = 5
+TARGET_MAX = 8
 
 
 def _utc_today() -> str:

@@ -182,7 +182,7 @@ class OddsApiFeed:
                 try:
                     detail = str(json.loads(exc.read().decode("utf-8")).get("message", ""))
                 except Exception:
-                    pass
+                    detail = ""  # error body not JSON; proceed without detail
                 if exc.code in (401, 429) and i + 1 < len(self.api_keys):
                     print(
                         f"    feed: {sport_key} -> HTTP {exc.code} on key{i + 1}; "

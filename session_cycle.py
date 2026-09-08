@@ -31,8 +31,8 @@ def _pull() -> None:
     try:
         subprocess.run(["git", "pull", "--rebase", "-X", "theirs", "origin", "main"],
                        capture_output=True, text=True, timeout=90)
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[cycle] git pull skipped ({type(exc).__name__})")
 
 
 def _run(script: str) -> None:

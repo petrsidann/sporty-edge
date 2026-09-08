@@ -1,8 +1,9 @@
-name: sporty-edge always-on
+name: sporty-edge hourly
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 10,11,12,13,14,15,16,17,18,19,20,21,22 * * *"  # 13:00-23:00 EAT hourly
+    - cron: "0 22 * * *"                                       # 01:00 EAT (S4 close)
   workflow_dispatch: {}
 
 permissions:
@@ -17,26 +18,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Session cycle (settle + 8 picks per 4h window + totals pivot)
+      - name: Session cycle (settle + concentrated picks + credits report)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
         run: python session_cycle.py
-
       - name: Commit ledger + cache + state
         run: |
           git config user.name "edge-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/ || true
-          git diff --cached --quiet || git commit -m "cycle [skip ci]"
+          git diff --cached --quiet || git commit -m "hourly cycle [skip ci]"
           git push
